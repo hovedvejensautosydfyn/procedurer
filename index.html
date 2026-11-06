@@ -326,6 +326,42 @@
   .slow-hint { opacity: 0; animation: show-late .4s 6s forwards; }
   @keyframes show-late { to { opacity: 1; } }
 
+  /* Ny bil, udstyr, fejl og mangler, noter og billeder */
+  .head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .plate-card { padding: 20px; }
+  .plate-input { display: flex; align-items: stretch; border: 2.5px solid #c8102e; border-radius: 8px; background: #fff; overflow: hidden; margin: 6px 0 14px; }
+  .plate-input .plate-eu { flex: none; width: 44px; background: #1b4aa6; color: #fff; font-size: 13px; font-weight: 600; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; }
+  input.plate-field {
+    flex: 1; min-width: 0; border: 0; border-radius: 0; background: #fff; color: #111; font-size: 32px; font-weight: 600; letter-spacing: .08em; text-align: center; text-transform: uppercase; padding: 12px 8px;
+  }
+  input.plate-field::placeholder { color: #9a9a9a; opacity: 1; }
+  input.plate-field:focus { box-shadow: none; }
+  .plate-input:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 30%, transparent); }
+  .plate-actions { display: grid; gap: 10px; }
+  .plate-actions .primary { width: 100%; padding: 14px 18px; font-size: 16px; }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; padding: 18px 18px 4px; }
+  .form-grid .field.wide { grid-column: 1 / -1; }
+  .info { padding: 4px 8px 6px; margin-bottom: 4px; }
+  .info-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-top: 1px solid var(--line); min-height: 48px; }
+  .info > .info-row:first-child { border-top: 0; }
+  .info-row .check-item { flex: 1; min-width: 0; align-items: center; gap: 12px; padding: 4px 0; }
+  .info-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .info-row.fixed .info-text { text-decoration: line-through; color: var(--muted); }
+  .info-add { display: flex; gap: 8px; align-items: center; padding: 10px 8px 8px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .info-add input[type="text"] { flex: 1; min-width: 160px; }
+  .photo-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
+  .photo-btn input[type="file"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; font-size: 0; }
+  .photo-btn:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .photo-box { padding: 16px 18px; margin-bottom: 4px; }
+  .photo-status { margin: 10px 0 0; font-size: 14px; }
+  .photo-status.error { color: var(--danger); }
+  .photo-status .link-btn { margin-left: 6px; }
+  .info-note { padding: 14px 16px 10px; margin-bottom: 4px; }
+  .info-note textarea { min-height: 96px; }
+  .note-state { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; min-height: 18px; }
+  @media (pointer: coarse) { .icon-btn { width: 44px; height: 44px; } }
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } input.plate-field { font-size: 28px; } }
+
   /* Parring og adgang */
   body.unpaired .tabs, body.unpaired .top-actions { display: none; }
   .pair { max-width: 460px; margin: 4vh auto 0; }
@@ -488,6 +524,12 @@
     pairNotice: '',
     renderDeferred: false,
     manualCars: {},       // biler skrevet ind i hånden i denne session
+    dfPhoto: null,        // billede valgt til en ny fejl: { key, file }
+    noteDraft: null,      // note, der skrives på en bil, men endnu ikke er sendt: { key, text }
+    noteTimer: 0,
+    info: {},             // udstyr, fejl og mangler og note pr. bil (nøgle = bilens nøgle), hentet med getCarInfo
+    newCar: null,         // skærmen "Ny bil" (opslag og udfyldning)
+    uploads: {},          // billeder, der gemmes, pr. bil: { total, done, active, queue, failed }
     search: '',
     hist: { proc: '', status: '', q: '', limit: 200 },
     editor: null,
@@ -521,7 +563,12 @@
   var OPS_STORE = 'procedurer.ops';
   var SKEW_STORE = 'procedurer.skew';       // serverens ur minus enhedens (ms)
   var LASTAT_STORE = 'procedurer.lastAt';   // tidspunktet for den seneste ændring, så tidspunkter kun går fremad
-  var QUEUED = { answerChecklistItem: true, skipChecklistSection: true, saveChecklistNote: true }; // kan sendes igen uden skade
+  var QUEUED = { answerChecklistItem: true, skipChecklistSection: true, saveChecklistNote: true, saveCarInfo: true }; // kan sendes igen uden skade
+  var NEW_FUNCTIONS = { lookupPlate: true, createCar: true, getCarInfo: true, saveCarInfo: true, uploadPhoto: true };
+  var NEEDS_NEW_SERVER = 'Kræver ny serverversion';
+  var PHOTO_TIMEOUT_MS = window.PROCEDURER_PHOTO_TIMEOUT_MS || 120000;  // et billede er flere MB og kan tage tid på dårligt net
+  var PHOTO_MAX_SIDE = 2560;                                            // længste side i pixel, når et billede skaleres
+  var PHOTO_QUALITY = 0.85;                                             // JPEG-kvalitet
 
   // localStorage kan mangle (fx privat fane). Så huskes værdierne, så længe siden er åben.
   var memStore = {};
@@ -541,6 +588,9 @@
   S.key = store.get(KEY_STORE);
   S.skew = Number(store.get(SKEW_STORE)) || 0;
   S.lastAt = Number(store.get(LASTAT_STORE)) || 0;
+  // Noter, der ikke blev gemt, fordi de var ændret andetsteds: { bilens nøgle: { mine, by, reg } }. Gemmes på enheden som køen, så de overlever en genstart.
+  S.noteConflicts = {};
+  try { S.noteConflicts = JSON.parse(store.get('procedurer.noteConflicts') || '{}') || {}; } catch (e) { S.noteConflicts = {}; }
 
   var SETUP_MESSAGE = 'Serveren er ikke sat op rigtigt. Se Fejlfinding i vejledningen (README): webappen skal være delt med "Alle", og adressen skal slutte på /exec.';
 
@@ -552,11 +602,11 @@
   }
 
   /** Ét kald til serveren. Afviser med en Error, hvor code er AUTH, INPUT, LIMIT, SERVER eller SETUP, og retry er sand ved netfejl. */
-  function call(name, arg) {
+  function call(name, arg, timeoutMs) {
     if (!API_URL) return Promise.reject(appError('Appen er ikke sat op endnu. Adressen til serveren mangler i filen config.js.', 'SETUP'));
     var body = JSON.stringify({ fn: name, args: arg === undefined ? [] : [arg], key: name === 'pair' ? '' : S.key });
     var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS) : 0;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs || TIMEOUT_MS) : 0;
     // text/plain er en "simpel" forespørgsel: ingen forhåndsforespørgsel, som Apps Script ikke kan svare på.
     return fetch(API_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body,
@@ -578,6 +628,11 @@
       if (json.ok) return json.data;
       var err = appError(String(json.error || 'Noget gik galt. Prøv igen.'), String(json.code || 'SERVER'));
       if (err.code === 'AUTH' && name !== 'pair') authLost();
+      // "Regnearket er optaget": intet er sket, og kaldet kan sendes igen (ændringer i køen og billeder med samme uploadId er sikre at gentage).
+      if (err.code === 'SERVER' && /^Regnearket er optaget/.test(err.message)) err.retry = true;
+
+      // Den gamle serverkode kender ikke de nye funktioner: skjul dem i stedet for at vise fejl.
+      if (NEW_FUNCTIONS[name] && err.code === 'INPUT' && err.message === 'Ukendt handling.') { S.legacyServer = true; if (S.state) render(); }
       throw err;
     }, function (err) {
       clearTimeout(timer);
@@ -594,6 +649,23 @@
     el.className = 'toast show' + (isError ? ' error' : '');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.className = 'toast'; }, isError ? 7000 : 3500);
+  }
+
+  /** Som toast, men med knappen "Fortryd". Beskeden står i 8 sekunder. */
+  function toastUndo(text, onUndo) {
+    var el = $('toast');
+    el.textContent = text + ' ';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'link-btn';
+    b.setAttribute('data-undo', '1');
+    b.style.cssText = 'color:inherit;text-decoration:underline;font-weight:600';
+    b.textContent = 'Fortryd';
+    b.onclick = function () { clearTimeout(toastTimer); el.className = 'toast'; onUndo(); };
+    el.appendChild(b);
+    el.className = 'toast show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.className = 'toast'; }, 8000);
   }
 
   var DATE_FMT = new Intl.DateTimeFormat('da-DK', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
@@ -722,7 +794,7 @@
     S.key = '';
     S.ops = []; S.pending = 0; S.sending = false; S.netDown = false; S.setupError = ''; S.retries = 0; S.resumed = 0; S.saveFailed = false;
     S.state = null; S.run = null; S.runError = ''; S.loadError = ''; S.loadingRun = null;
-    S.editor = null; S.editorFor = null; S.dirty = false; S.finishing = false; S.manualCars = {};
+    S.editor = null; S.editorFor = null; S.dirty = false; S.finishing = false; S.manualCars = {}; S.info = {}; S.newCar = null; S.uploads = {}; S.noteConflicts = {}; store.remove('procedurer.noteConflicts');
     S.pairNotice = notice + (lost ? ' Ændringer, der ikke var gemt, er gået tabt.' : '');
     S.hash = '#/biler';
     history.replaceState(null, '', S.hash);
@@ -754,7 +826,14 @@
 
   function archiveCars() {
     return (S.state.cars || []).map(function (c) {
-      return { key: 'a:' + c.id, archiveId: c.id, reg: c.reg, model: c.model, year: c.year, status: c.status, boughtDate: c.boughtDate, soldDate: c.soldDate, inArchive: true };
+      return { key: 'a:' + c.id, archiveId: c.id, reg: c.reg, model: c.model, year: c.year, status: c.status, boughtDate: c.boughtDate, soldDate: c.soldDate, folder: c.folder || '', createdAt: c.createdAt || '', inArchive: true };
+    });
+  }
+
+  /** Biler oprettet fra telefonen, som Bilarkivet ikke har hentet endnu. Nøglen er den samme som for en bil skrevet ind i hånden (reg.nr.). */
+  function pendingCars() {
+    return (S.state.pending || []).map(function (p) {
+      return { key: 'r:' + normalizeReg(p.reg), archiveId: '', pendingId: p.id, reg: p.reg, model: p.model, year: p.year, createdAt: p.createdAt, pending: true, duplicate: !!p.duplicate, inArchive: false };
     });
   }
 
@@ -763,6 +842,11 @@
     var known = {};
     archive.forEach(function (c) { known[c.key] = true; });
     var out = [];
+    pendingCars().forEach(function (c) {
+      if (known[c.key]) return;
+      known[c.key] = true;
+      out.push(c);
+    });
     S.state.runs.forEach(function (r) {
       var k = keyOf(r);
       if (known[k]) return;
@@ -859,7 +943,7 @@
   });
 
   window.addEventListener('beforeunload', function (e) {
-    if (S.dirty || S.pending) { e.preventDefault(); e.returnValue = ''; }
+    if (S.dirty || S.pending || photosBusy()) { e.preventDefault(); e.returnValue = ''; }
   });
 
   // Hent nye biler og tjeklister, når appen kommer i forgrunden igen. På telefonen
@@ -869,9 +953,11 @@
     if (S.ops.length) { flush(true); return; }   // ugemte ændringer sendes, før noget hentes
     if (!S.state || Date.now() - S.loadedAt < 20000 || S.pending) return;
     var r = parseRoute();
-    if (r.name === 'procedure') return;
+    if (r.name === 'procedure' || r.name === 'ny-bil') return;
     S.loadedAt = Date.now();
     if (r.name === 'tjekliste' && S.run && S.run.id === r.arg) refreshRun(r.arg);
+    var shown = r.name === 'bil' ? findCar(r.arg) : null;
+    if (shown && carRef(shown)) refreshCarInfo(shown);
     loadState(true);
   }
   window.addEventListener('focus', refreshOnReturn);
@@ -898,7 +984,7 @@
     var r = parseRoute();
     document.querySelectorAll('.tabs a').forEach(function (a) {
       var tab = a.getAttribute('data-tab');
-      var on = tab === r.name || (tab === 'biler' && (r.name === 'bil' || r.name === 'tjekliste')) || (tab === 'procedurer' && r.name === 'procedure');
+      var on = tab === r.name || (tab === 'biler' && (r.name === 'bil' || r.name === 'tjekliste' || r.name === 'ny-bil')) || (tab === 'procedurer' && r.name === 'procedure');
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
 
@@ -912,6 +998,7 @@
     var html;
     if (r.name === 'bil') html = viewCar(r.arg);
     else if (r.name === 'tjekliste') html = viewRun(r.arg);
+    else if (r.name === 'ny-bil') html = viewNewCar();
     else if (r.name === 'historik') html = viewHistory();
     else if (r.name === 'procedurer') html = viewProcedures();
     else if (r.name === 'procedure') html = viewEditor(r.arg);
@@ -941,6 +1028,12 @@
 
   // ---------- Biler ----------
 
+  function receivingApplies
+(car) {
+    var since = S.state.receivingSince || 0;
+    return !!car.pending || !!(since && car.createdAt && Date.parse(car.createdAt) >= since);
+  }
+
   function carStatusPills(car) {
     return activeProcedures().map(function (p) {
       var runs = runsFor(car.key, p.id);
@@ -949,19 +1042,23 @@
       var done = runs.filter(function (r) { return r.status === STATUS.DONE; });
       if (p.repeat === 'once') {
         if (done.length) return '<span class="pill done">' + esc(p.name) + ' ✓</span>';
-        return car.status === 'solgt' ? '' : '<span class="pill">' + esc(p.name) + ' mangler</span>';
+        if (car.status === 'solgt') return '';
+        // "Modtagelse og test" er ny: den mangler kun på biler, der er oprettet efter, den kom, ikke på alle gamle lagerbiler.
+        if (S.state.receivingProcedureId && p.id === S.state.receivingProcedureId && !receivingApplies(car)) return '';
+        return '<span class="pill">' + esc(p.name) + ' mangler</span>';
       }
       return done.length ? '<span class="pill done">' + esc(p.name) + ' × ' + done.length + '</span>' : '';
     }).join('');
   }
 
   function carRow(car) {
-    var sub = [car.year, car.inArchive ? (car.status === 'solgt' ? 'Solgt ' + fmtIsoDate(car.soldDate) : car.boughtDate ? 'Købt ' + fmtIsoDate(car.boughtDate) : '') : 'Ikke i Bilarkivet']
+    var sub = [car.year, car.inArchive ? (car.status === 'solgt' ? 'Solgt ' + fmtIsoDate(car.soldDate) : car.boughtDate ? 'Købt ' + fmtIsoDate(car.boughtDate) : '')
+      : car.pending ? 'Oprettet ' + fmtWhen(car.createdAt) : 'Ikke i Bilarkivet']
       .filter(Boolean).join(' · ');
     return '<li><a class="row" href="#/bil/' + encodeURIComponent(car.key) + '">' + plate(car.reg) +
       '<span class="row-main"><span class="row-title">' + esc(car.model || 'Ukendt model') + '</span>' +
       (sub ? '<span class="row-sub">' + esc(sub) + '</span>' : '') + '</span>' +
-      '<span class="row-side">' + carStatusPills(car) + '</span></a></li>';
+      '<span class="row-side">' + (car.pending ? '<span class="pill">' + (car.duplicate ? 'Dobbelt nummerplade – se Bilarkivet' : 'Venter på Bilarkivet') + '</span>' : '') + carStatusPills(car) + '</span></a></li>';
   }
 
   function matches(car, q) {
@@ -972,7 +1069,10 @@
 
   function viewCars() {
     return '<div class="head"><div><h1>Biler</h1><p class="muted">Vælg en bil for at starte eller fortsætte en tjekliste.</p></div>' +
-      '<button class="secondary" type="button" data-action="manual-car">Bil uden for Bilarkivet</button></div>' +
+      '<div class="head-actions"><button class="secondary" type="button" data-action="manual-car">Bil uden for Bilarkivet</button>' +
+      (newServer() ? '<button class="primary" type="button" data-action="new-car">Ny bil</button>'
+        : '<button class="primary" type="button" data-action="new-car" disabled title="' + NEEDS_NEW_SERVER + '">Ny bil</button>') + '</div></div>' +
+      (newServer() ? '' : '<p class="muted" style="margin:-6px 0 14px;font-size:13.5px">Ny bil: ' + NEEDS_NEW_SERVER + '.</p>') +
       problemsBanner() + archiveBanner() +
       '<div class="toolbar"><input type="search" class="search" id="carSearch" data-key="carSearch" placeholder="Søg på reg.nr. eller model" aria-label="Søg i biler" value="' + esc(S.search) + '"></div>' +
       '<div id="carLists">' + carLists() + '</div>';
@@ -985,7 +1085,8 @@
     var open = S.state.runs.filter(function (r) { return r.status === STATUS.OPEN; });
     var stock = archive.filter(function (c) { return c.status !== 'solgt' && matches(c, q); });
     var sold = archive.filter(function (c) { return c.status === 'solgt' && matches(c, q); });
-    var rest = others.filter(function (c) { return matches(c, q); });
+    var waiting = others.filter(function (c) { return c.pending && matches(c, q); });
+    var rest = others.filter(function (c) { return !c.pending && matches(c, q); });
     var html = '';
 
     if (open.length && !q) {
@@ -996,6 +1097,8 @@
           '<span class="row-side"><span class="pill open">' + esc(r.progress) + '</span></span></a></li>';
       }).join('') + '</ul></div>';
     }
+
+    if (waiting.length) html += '<h3>Venter på Bilarkivet</h3><div class="card"><ul class="list">' + waiting.map(carRow).join('') + '</ul></div>';
 
     html += '<h3>På lager' + (stock.length ? ' (' + stock.length + ')' : '') + '</h3>';
     html += stock.length ? '<div class="card"><ul class="list">' + stock.map(carRow).join('') + '</ul></div>'
@@ -1017,7 +1120,8 @@
       return '<a class="back" href="#/biler">' + ICONS.back + 'Biler</a><h1>Bilen blev ikke fundet</h1>' +
         '<p class="muted">Den er måske slettet i Bilarkivet.</p>';
     }
-    var status = car.inArchive ? (car.status === 'solgt' ? 'Solgt ' + fmtIsoDate(car.soldDate) : 'På lager') : 'Ikke i Bilarkivet';
+    var status = car.inArchive ? (car.status === 'solgt' ? 'Solgt ' + fmtIsoDate(car.soldDate) : 'På lager') : car.pending ? (car.duplicate ? 'Dobbelt nummerplade – se Bilarkivet' : 'Venter på Bilarkivet') : 'Ikke i Bilarkivet';
+
     var html = '<a class="back" href="#/biler">' + ICONS.back + 'Biler</a>' +
       '<div class="car-head">' + plate(car.reg, true) + '<h1>' + esc(car.model || 'Ukendt model') + '</h1></div>' +
       '<p class="muted" style="margin:6px 0 0">' + esc([car.year, status].filter(Boolean).join(' · ')) + '</p>' + archiveBanner();
@@ -1027,6 +1131,7 @@
       : '<div class="card"><p class="empty">Der er ingen procedurer endnu. Opret en under <a href="#/procedurer">Procedurer</a>.</p></div>') + '</div>';
 
     var runs = runsFor(car.key);
+    html += carInfoHtml(car);
     html += '<h3>Tjeklister på bilen</h3>';
     html += runs.length ? '<div class="card"><ul class="list">' + runs.map(runRow).join('') + '</ul></div>'
       : '<div class="card"><p class="empty">Der er ikke lavet nogen tjeklister på bilen endnu.</p></div>';
@@ -1063,6 +1168,555 @@
       '<span class="row-main"><span class="row-title">' + esc(r.procedureName) + ' · ' + esc(r.car.model) + '</span>' +
       '<span class="row-sub">' + esc(when) + (r.note ? ' · ' + esc(r.note) : '') + '</span></span>' +
       '<span class="row-side">' + (r.status === STATUS.OPEN ? '<span class="pill open">' + esc(r.progress) + '</span>' : statusPill(r.status)) + '</span></a></li>';
+  }
+
+  // ---------- Udstyr, fejl og mangler, noter og billeder (på bilens side) ----------
+  // Gælder biler, der har en mappe på Google Drive: nye biler fra telefonen og biler i Bilarkivet. Ændringerne vises med det
+  // samme og sendes i samme kø som tjeklisternes svar (saveCarInfo), så de også kan laves uden forbindelse.
+
+  /** Serverkoden fra før denne version sender ikke 'pending' med. Så vises de nye funktioner ikke. */
+  function newServer() { return !S.legacyServer && !(S.state && !Array.isArray(S.state.pending)); }
+
+  function carRef(car) {
+    if (!newServer()) return null;
+    if (car.pending) return { pendingId: car.pendingId };
+    if (car.inArchive && car.folder) return { archiveId: car.archiveId };
+    return null;
+  }
+  function newItemId() { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function onCarPage(key) { var r = parseRoute(); return r.name === 'bil' && r.arg === key; }
+  function carOpPending(key) {
+    return S.ops.some(function (op) { return op.name === 'saveCarInfo' && op.arg.carKey === key; });
+  }
+
+  /** Henter bilens udstyr, fejl og note første gang bilens side vises. */
+  function ensureCarInfo(car) {
+    var info = S.info[car.key];
+    if (info) return info;
+    // notesBase er updatedAt for den version af noten, serveren sidst har bekræftet. Det er den, en ny note bygger på (også flere i køen).
+    info = S.info[car.key] = { loading: true, error: '', equipment: [], defects: [], notes: { text: '', updatedAt: 0, by: '' }, notesBase: 0 };
+    call('getCarInfo', carRef(car)).then(function (res) {
+      info.loading = false;
+      if (!carOpPending(car.key)) { info.equipment = res.info.equipment; info.defects = res.info.defects; info.notes = res.info.notes; info.notesBase = res.info.notes.updatedAt; }
+      if (onCarPage(car.key)) render();
+    }, function (err) {
+      info.loading = false;
+      if (err.code === 'AUTH') return;
+      info.error = err.message;
+      if (onCarPage(car.key)) render();
+    });
+    return info;
+  }
+
+  function trashButton(action, id, what) {
+    return '<button class="icon-btn danger" type="button" data-action="' + action + '" data-id="' + esc(id) + '" aria-label="Fjern ' + esc(what) + '" title="Fjern">' + ICONS.trash + '</button>';
+  }
+
+  function uploadStatus(key) {
+    var u = S.uploads[key];
+    if (!u) return { html: 'Billeder taget her gemmes i bilens mappe på Google Drive og ikke i kamerarullen. Bilarkivet henter dem derfra.', error: false };
+    var progress = u.done + ' af ' + u.total + ' gemt';
+    if (u.active) return { html: esc(progress) + ' …', error: false };
+    if (u.failed.length) {
+      return {
+        html: esc(progress) + '. ' + (u.failed.length === 1 ? 'Et billede' : u.failed.length + ' billeder') + ' kunne ikke gemmes: ' + esc(u.failed[0].message) +
+          ' <button class="link-btn" type="button" data-action="photo-retry">Prøv igen</button>',
+        error: true
+      };
+    }
+    return { html: esc(u.total === 1 ? '1 billede gemt.' : u.total + ' billeder gemt.'), error: false };
+  }
+  function showUploadStatus(key) {
+    var el = $('photoStatus');
+    if (!el || !onCarPage(key)) return;
+    var s = uploadStatus(key);
+    el.className = 'photo-status' + (s.error ? ' error' : '');
+    el.innerHTML = s.html;
+  }
+
+  function carInfoHtml(car) {
+    if (!newServer()) {
+      return '<h3>Udstyr, fejl og billeder</h3><div class="card"><p class="empty">' + NEEDS_NEW_SERVER + '. Serveren skal opdateres, før udstyr, fejl og mangler, noter og billeder kan bruges her.</p></div>';
+    }
+    if (!carRef(car)) return '';
+    var info = ensureCarInfo(car);
+    if (info.loading) return '<div class="loading"><span class="spinner"></span> Henter udstyr, fejl og noter …</div>';
+    if (info.error) {
+      return '<div class="banner error" role="alert" style="margin-top:20px"><span>' + esc(info.error) + '</span><button class="secondary" type="button" data-action="info-retry">Prøv igen</button></div>';
+    }
+    var html = '<h3>Udstyr' + (info.equipment.length ? ' (' + info.equipment.length + ')' : '') + '</h3><div class="card info">';
+    html += info.equipment.length
+      ? info.equipment.map(function (e) { return '<div class="info-row"><span class="info-text">' + esc(e.name) + '</span>' + trashButton('eq-del', e.id, e.name) + '</div>'; }).join('')
+      : '<p class="empty">Der er ikke skrevet noget udstyr på bilen endnu.</p>';
+    html += '<form class="info-add" id="eqForm" novalidate><input type="text" id="eqNew" data-key="eqNew" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Nyt udstyr, fx anhængertræk" aria-label="Nyt udstyr">' +
+      '<button class="secondary" type="submit">Tilføj udstyr</button></form></div>';
+
+    var open = info.defects.filter(function (d) { return !d.fixed; }).length;
+    html += '<h3>Fejl og mangler' + (info.defects.length ? ' (' + open + ' åbne)' : '') + '</h3><div class="card info">';
+    html += info.defects.length
+      ? info.defects.map(function (d) {
+        return '<div class="info-row' + (d.fixed ? ' fixed' : '') + '"><label class="check-item"><input type="checkbox" data-df-fix="' + esc(d.id) + '" data-key="df-' + esc(d.id) + '"' + (d.fixed ? ' checked' : '') +
+          ' aria-label="Udbedret: ' + esc(d.text) + '"><span class="box">' + CHECK_SVG + '</span><span class="info-text">' + esc(d.text) + (d.photo ? ' <span class="pill">Billede</span>' : '') + '</span></label>' +
+          trashButton('df-del', d.id, d.text) + '</div>';
+      }).join('')
+      : '<p class="empty">Ingen fejl eller mangler skrevet på bilen.</p>';
+    var pic = S.dfPhoto && S.dfPhoto.key === car.key ? S.dfPhoto : null;
+    html += '<form class="info-add" id="dfForm" novalidate><input type="text" id="dfNew" data-key="dfNew" maxlength="300" autocomplete="off" enterkeyhint="done" placeholder="Beskriv fejlen eller manglen" aria-label="Ny fejl eller mangel">' +
+      '<label class="secondary photo-btn" id="dfPhotoBtn">' + (pic ? 'Billede valgt ✓' : 'Billede') + '<input type="file" id="dfPhoto" accept="image/*" aria-label="Tag eller vælg et billede til fejlen"></label>' +
+      '<button class="secondary" type="submit" id="dfAdd">Tilføj fejl</button>' +
+      '<p class="form-error" id="dfError" role="alert" hidden style="flex-basis:100%;margin:2px 0 0"></p></form></div>';
+
+    html += '<h3>Noter</h3>';
+    var conflict = S.noteConflicts[car.key];
+    if (conflict) {
+      html += '<div class="banner warn" role="alert" style="flex-wrap:wrap"><span><b>Noten blev ændret af ' + esc(conflictBy(conflict.by)) + ', mens du skrev.</b> Den nye tekst vises nu. Din tekst blev ikke gemt: "' +
+        esc(conflict.mine.length > 300 ? conflict.mine.slice(0, 297) + '…' : conflict.mine) + '"</span>' +
+        '<span><button class="secondary" type="button" data-action="note-mine">Brug min tekst</button> <button class="secondary" type="button" data-action="note-dismiss">Behold den nye</button></span></div>';
+    }
+    html += '<div class="card info-note"><label class="label" for="carNote">Noter om bilen</label>' +
+      '<textarea id="carNote" data-key="carNote" maxlength="20000" placeholder="Fx skader, aftaler eller hvad der mangler">' + esc(info.notes.text) + '</textarea>' +
+      '<p class="note-state" id="noteState" aria-live="polite">Gemmes automatisk.</p></div>';
+
+    var st = uploadStatus(car.key);
+    html += '<h3>Billeder</h3><div class="card photo-box"><label class="primary photo-btn" style="display:flex">Tilføj billeder' +
+      '<input type="file" id="carPhotos" accept="image/*" multiple aria-label="Tilføj billeder fra kameraet eller fotobiblioteket"></label>' +
+      '<p class="photo-status' + (st.error ? ' error' : '') + '" id="photoStatus" role="status" aria-live="polite">' + st.html + '</p></div>';
+    return html;
+  }
+
+  function currentCar() {
+    var r = parseRoute();
+    return r.name === 'bil' ? findCar(r.arg) : null;
+  }
+
+  /** Lægger en ændring af udstyr, fejl eller note i køen og viser den med det samme. */
+  function saveInfo(car, patch) {
+    var arg = Object.assign({}, carRef(car), { carKey: car.key, carReg: car.reg || '' }, patch);
+    save('saveCarInfo', arg);
+  }
+
+  function addEquipment(car, name) {
+    var info = ensureCarInfo(car);
+    name = name.replace(/\s+/g, ' ').trim();
+    // (udstyr er korte navne: dobbelte mellemrum samles)
+    if (!name) return false;
+    var dup = info.equipment.some(function (e) { return e.name.toLowerCase() === name.toLowerCase(); });
+    if (dup) { toast('Det udstyr står allerede på bilen.'); return false; }
+    var id = newItemId();
+    info.equipment.push({ id: id, name: name, source: 'egen', updatedAt: Date.now() + S.skew, by: S.state.user, deleted: false });
+    saveInfo(car, { equipment: [{ id: id, name: name }] });
+    return true;
+  }
+  function addDefect(car, text, photo) {
+    var info = ensureCarInfo(car);
+    var id = newItemId();
+    var now = Date.now() + S.skew;
+    info.defects.push({ id: id, text: text, photo: photo || '', fixed: false, createdAt: now, updatedAt: now, by: S.state.user, deleted: false });
+    saveInfo(car, { defects: [{ id: id, text: text, photo: photo || '' }] });
+  }
+
+  function saveNoteDraft() {
+    clearTimeout(S.noteTimer);
+    var d = S.noteDraft;
+    S.noteDraft = null;
+    if (!d) return;
+    var car = findCar(d.key);
+    var info = S.info[d.key];
+    if (!car || !info || !carRef(car) || info.notes.text === d.text) return;
+    var base = info.notesBase || 0;       // den seneste version af noten, serveren har bekræftet
+    info.notes = { text: d.text, updatedAt: Date.now() + S.skew, by: S.state.user };
+    saveInfo(car, { notes: d.text, notesBase: base });
+    var queued = S.ops[S.ops.length - 1];
+    if (queued && queued.arg.at) info.notes.updatedAt = queued.arg.at;
+    var el = $('noteState');
+    if (el && onCarPage(d.key)) el.textContent = 'Gemmer …';
+  }
+
+  // ---------- Billeder: skalering, upload og fremskridt ----------
+
+  function decodeImage(file) {
+    function viaImg() {
+      return new Promise(function (resolve, reject) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () { resolve({ source: img, width: img.naturalWidth, height: img.naturalHeight, close: function () { URL.revokeObjectURL(url); } }); };
+        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('decode')); };
+        img.src = url;
+      });
+    }
+    if (typeof createImageBitmap !== 'function') return viaImg();
+    function wrap(bmp) { return { source: bmp, width: bmp.width, height: bmp.height, close: function () { if (bmp.close) bmp.close(); } }; }
+    return createImageBitmap(file, { imageOrientation: 'from-image' }).then(wrap, function () {
+      return createImageBitmap(file).then(wrap, viaImg);
+    });
+  }
+
+  /** Skalerer til højst 2560 px på den længste side og gemmer som JPEG (kvalitet 0,85). HEIC fra iPhone bliver dermed til JPG. */
+  function scaleToJpeg(file) {
+    return decodeImage(file).then(function (img) {
+      var scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(img.width, img.height));
+      var w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';                       // gennemsigtige billeder (PNG) får hvid baggrund
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img.source, 0, 0, w, h);
+      img.close();
+      return new Promise(function (resolve, reject) {
+        canvas.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error('encode')); }, 'image/jpeg', PHOTO_QUALITY);
+      });
+    }).catch(function () { throw appError('Filen kunne ikke læses som et billede.', 'INPUT'); });
+  }
+
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result).split(',')[1] || ''); };
+      reader.onerror = function () { reject(appError('Billedet kunne ikke læses.', 'INPUT')); };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function wait(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+
+  /** Sender ét billede. Ved netfejl prøves der igen op til to gange; samme uploadId gør, at et billede aldrig gemmes to gange. */
+  function sendPhoto(ref, base64, uploadId, tries) {
+    tries = tries || 0;
+    return call('uploadPhoto', Object.assign({}, ref, { mime: 'image/jpeg', data: base64, uploadId: uploadId }), PHOTO_TIMEOUT_MS).catch(function (err) {
+      if (err.retry && tries < 2) return wait(RETRY_MS * Math.pow(2, tries)).then(function () { return sendPhoto(ref, base64, uploadId, tries + 1); });
+      throw err;
+    });
+  }
+
+  function uploadFile(ref, file, uploadId) {
+    return scaleToJpeg(file).then(blobToBase64).then(function (b64) { return sendPhoto(ref, b64, uploadId); });
+  }
+
+  function addPhotos(car, files) {
+    var ref = carRef(car);
+    if (!ref || !files.length) return;
+    var u = S.uploads[car.key];
+    if (!u || (!u.active && !u.failed.length)) u = S.uploads[car.key] = { ref: ref, total: 0, done: 0, active: false, queue: [], failed: [] };
+    files.forEach(function (f) { u.queue.push({ file: f, id: newItemId() }); u.total++; });
+    runUploads(car.key);
+  }
+
+  function runUploads(key) {
+    var u = S.uploads[key];
+    if (!u || u.active) return;
+    u.active = true;
+    showUploadStatus(key);
+    (function next() {
+      var item = u.queue.shift();
+      if (!item) { u.active = false; showUploadStatus(key); return; }
+      uploadFile(u.ref, item.file, item.id).then(function () {
+        u.done++;
+        showUploadStatus(key);
+        next();
+      }, function (err) {
+        if (err.code === 'AUTH') { u.active = false; return; }
+        item.message = err.message;
+        u.failed.push(item);
+        if (err.retry || err.code === 'SETUP') {
+          // Forbindelsen svigter: resten prøves ikke nu, men står klar til "Prøv igen".
+          u.queue.forEach(function (rest) { rest.message = err.message; u.failed.push(rest); });
+          u.queue = [];
+          u.active = false;
+        }
+        showUploadStatus(key);
+        if (u.active) next();
+      });
+    })();
+  }
+
+  function retryPhotos(key) {
+    var u = S.uploads[key];
+    if (!u || u.active || !u.failed.length) return;
+    u.queue = u.failed;
+    u.failed = [];
+    runUploads(key);
+  }
+
+  function photosBusy() { return Object.keys(S.uploads).some(function (k) { return S.uploads[k].active; }); }
+
+  /** Henter bilens udstyr, fejl og note igen (fx når appen kommer i forgrunden), så ændringer fra Bilarkivet vises. */
+  function refreshCarInfo(car) {
+    var info = S.info[car.key];
+    if (!info || info.loading || carOpPending(car.key)) return;
+    call('getCarInfo', carRef(car)).then(function (res) {
+      if (carOpPending(car.key)) return;
+      var before = infoSignature(info);
+      info.equipment = res.info.equipment; info.defects = res.info.defects; info.notes = res.info.notes; info.notesBase = res.info.notes.updatedAt;
+      if (onCarPage(car.key) && before !== infoSignature(info)) render();
+    }, function () { /* stille: det, der står på skærmen, er stadig det seneste kendte */ });
+  }
+
+  function removeInfoItem(kind, id) {
+    var car = currentCar();
+    var info = car && S.info[car.key];
+    if (!info) return;
+    var list = kind === 'equipment' ? info.equipment : info.defects;
+    var item = list.filter(function (x) { return x.id === id; })[0];
+    if (!item) return;
+    var index = list.indexOf(item);
+    if (kind === 'equipment') info.equipment = info.equipment.filter(function (e) { return e.id !== id; });
+    else info.defects = info.defects.filter(function (d) { return d.id !== id; });
+    saveInfo(car, kind === 'equipment' ? { equipment: [{ id: id, deleted: true }] } : { defects: [{ id: id, deleted: true }] });
+    render(true);
+    toastUndo(kind === 'equipment' ? 'Udstyret er fjernet.' : 'Fejlen er slettet.', function () {
+      var cur = S.info[car.key];
+      if (!cur) return;
+      var target = kind === 'equipment' ? cur.equipment : cur.defects;
+      if (!target.some(function (x) { return x.id === id; })) target.splice(Math.min(index, target.length), 0, item);
+      saveInfo(car, kind === 'equipment' ? { equipment: [{ id: id, restore: true }] } : { defects: [{ id: id, restore: true }] });
+      if (onCarPage(car.key)) render(true);
+    });
+  }
+
+  function toggleDefect(el) {
+    var car = currentCar();
+    var info = car && S.info[car.key];
+    if (!info) return;
+    var id = el.getAttribute('data-df-fix');
+    var d = info.defects.filter(function (x) { return x.id === id; })[0];
+    if (!d) return;
+    d.fixed = el.checked;
+    d.updatedAt = Date.now() + S.skew;
+    saveInfo(car, { defects: [{ id: id, fixed: d.fixed }] });
+    render(true);
+  }
+
+  function dfError(text) {
+    var el = $('dfError');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  function submitDefect() {
+    var car = currentCar();
+    if (!car || !carRef(car)) return;
+    var input = $('dfNew');
+    var text = input.value.replace(/\s+/g, ' ').trim();
+    dfError('');
+    if (!text) { dfError('Skriv, hvad fejlen eller manglen er.'); input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+    input.removeAttribute('aria-invalid');
+    var pic = S.dfPhoto && S.dfPhoto.key === car.key ? S.dfPhoto.file : null;
+    if (!pic) {
+      addDefect(car, text, '');
+      render(true);
+      if ($('dfNew')) $('dfNew').focus();
+      return;
+    }
+    var btn = $('dfAdd');
+    btn.disabled = true;
+    btn.textContent = 'Gemmer billede …';
+    uploadFile(carRef(car), pic, newItemId()).then(function (res) {
+      S.dfPhoto = null;
+      addDefect(car, text, res.path);
+      render(true);
+      if ($('dfNew')) $('dfNew').focus();
+    }, function (err) {
+      if (err.code === 'AUTH') return;
+      var b = $('dfAdd');
+      if (b) { b.disabled = false; b.textContent = 'Tilføj fejl'; }
+      dfError(err.message + ' Fejlen er ikke tilføjet.');
+    });
+  }
+
+  function submitEquipment() {
+    var car = currentCar();
+    if (!car || !carRef(car)) return;
+    var input = $('eqNew');
+    if (!input.value.trim()) { input.focus(); return; }
+    addEquipment(car, input.value);
+    render(true);
+    if ($('eqNew')) $('eqNew').focus();
+  }
+
+  // ---------- Ny bil ----------
+
+  function newCarState() {
+    return { step: 'plate', reg: '', busy: false, error: '', fieldError: '', existing: null, lookedUp: false, equipmentError: '', nextInspection: '',
+      f: { model: '', year: '', firstReg: '', fuel: '', color: '', vin: '', km: '' }, equip: [], notes: '' };
+  }
+  function openNewCar() {
+    if (!newServer()) { toast(NEEDS_NEW_SERVER + '.', true); return; }
+    S.newCar = newCarState();
+    go('#/ny-bil');
+  }
+
+  function isoToDa(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    return m ? m[3] + '-' + m[2] + '-' + m[1] : (iso || '');
+  }
+
+  function viewNewCar() {
+    if (!newServer()) {
+      return '<a class="back" href="#/biler">' + ICONS.back + 'Biler</a><h1>Ny bil</h1><div class="banner warn" role="status"><span><b>' + NEEDS_NEW_SERVER + '.</b> Serveren skal opdateres, før en bil kan oprettes fra telefonen.</span></div>';
+    }
+    var n = S.newCar || (S.newCar = newCarState());
+    return n.step === 'plate' ? viewPlateStep(n) : viewNewCarForm(n);
+  }
+
+  function viewPlateStep(n) {
+    var html = '<a class="back" href="#/biler">' + ICONS.back + 'Biler</a><div class="head"><div><h1>Ny bil</h1>' +
+      '<p class="muted">Skriv nummerpladen. Så henter appen bilens oplysninger og udstyr fra registret.</p></div></div>';
+    if (n.existing) {
+      html += '<div class="banner" role="status"><span><b>' + (n.existing.kind === 'archive' ? 'Bilen findes allerede i Bilarkivet.' : 'Bilen er allerede oprettet og venter på Bilarkivet.') + '</b> ' +
+        esc(n.existing.model) + '</span><button class="secondary" type="button" data-action="nc-open">Åbn bilen</button></div>';
+    }
+    if (n.error) html += '<div class="banner error" role="alert"><span>' + esc(n.error) + '</span></div>';
+    html += '<form class="card plate-card" id="plateForm" novalidate><label class="label" for="newReg">Nummerplade</label>' +
+      '<div class="plate-input"><span class="plate-eu" aria-hidden="true">DK</span>' +
+      '<input id="newReg" class="plate-field" data-key="newReg" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="10" placeholder="AB 12 345" value="' + esc(n.reg) + '"' + (n.busy ? ' disabled' : '') + '></div>' +
+      '<div class="plate-actions"><button class="primary" type="submit" id="lookupBtn" data-key="lookupBtn"' + (n.busy ? ' disabled' : '') + '>' + (n.busy ? 'Slår op …' : 'Slå op') + '</button>' +
+      '<button class="secondary" type="button" data-action="nc-manual"' + (n.busy ? ' disabled' : '') + '>Opret uden opslag</button></div></form>';
+    return html;
+  }
+
+  function ncField(n, name, label, opts) {
+    opts = opts || {};
+    return '<div class="field' + (opts.wide ? ' wide' : '') + '"><label for="nc-' + name + '">' + label + '</label><input type="text" id="nc-' + name + '" data-nc="' + name + '" data-key="nc-' + name + '" value="' + esc(n.f[name]) + '"' +
+      (opts.mode ? ' inputmode="' + opts.mode + '"' : '') + (opts.max ? ' maxlength="' + opts.max + '"' : '') + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : '') + ' autocomplete="off"' +
+      (n.fieldError === name ? ' aria-invalid="true"' : '') + (opts.help ? ' aria-describedby="nc-' + name + '-help"' : '') + '>' +
+      (opts.help ? '<span class="item-help" id="nc-' + name + '-help">' + esc(opts.help) + '</span>' : '') + '</div>';
+  }
+
+  /** "Ved syn 15-06-2026: 60.000 km": kilometerstanden fra seneste syn. Den vises kun og bliver ikke bilens km-stand. */
+  function motHelp(n) {
+    if (n.motKm === null || n.motKm === undefined) return '';
+    return 'Ved syn' + (n.motDate ? ' ' + isoToDa(n.motDate) : '') + ': ' + formatNumberDa(n.motKm) + ' km';
+  }
+
+  function ncEquipCount(n) { var c = n.equip.filter(function (e) { return e.checked; }).length; return c + (c === 1 ? ' valgt' : ' valgte'); }
+
+  function viewNewCarForm(n) {
+    var html = '<button class="back link-btn" type="button" data-action="nc-reset" style="color:var(--muted);margin-bottom:12px">' + ICONS.back + 'Anden nummerplade</button>' +
+      '<div class="car-head">' + plate(n.reg, true) + '<h1>Ny bil</h1></div>' +
+      '<p class="muted" style="margin:6px 0 16px">' + (n.lookedUp ? 'Oplysningerne er hentet fra registret. Ret dem, hvis noget er forkert.' : 'Der er ikke slået noget op. Udfyld oplysningerne selv.') + '</p>';
+    if (n.error) html += '<div class="banner error" role="alert" id="ncError"><span>' + esc(n.error) + '</span></div>';
+    if (n.equipmentError) html += '<div class="banner warn" role="status"><span>' + esc(n.equipmentError) + '</span></div>';
+    html += '<section class="card" aria-label="Oplysninger"><div class="form-grid">' +
+      ncField(n, 'model', 'Mærke og model', { wide: true, max: 120, ph: 'fx VW Golf 1.5 TSI Style' }) +
+      ncField(n, 'year', 'Årgang', { mode: 'numeric', max: 4, ph: '2019' }) +
+      ncField(n, 'firstReg', '1. registrering', { max: 10, ph: 'dd-mm-åååå' }) +
+      ncField(n, 'fuel', 'Brændstof', { max: 40 }) +
+      ncField(n, 'color', 'Farve', { max: 40 }) +
+      ncField(n, 'vin', 'Stelnummer', { wide: true, max: 20 }) +
+      ncField(n, 'km', 'Km-stand', { mode: 'decimal', max: 9, ph: '45.230', help: motHelp(n) }) +
+      '</div></section>';
+    html += '<section class="card sec" style="margin-top:16px"><div class="sec-head"><h2>Udstyr<span class="sec-count" id="ncEqCount">' + ncEquipCount(n) + '</span></h2></div>';
+    html += n.equip.length
+      ? '<ul class="items">' + n.equip.map(function (e, i) {
+        return '<li><div class="item info-row" style="padding:2px 10px"><label class="check-item"><input type="checkbox" data-nc-eq="' + i + '" data-key="nc-eq-' + i + '"' + (e.checked ? ' checked' : '') + '><span class="box">' + CHECK_SVG + '</span>' +
+          '<span class="info-text">' + esc(e.name) + '</span></label>' + (e.source === 'dmr' ? '' : '<button class="icon-btn danger" type="button" data-action="nc-eq-del" data-i="' + i + '" aria-label="Fjern ' + esc(e.name) + '" title="Fjern">' + ICONS.trash + '</button>') + '</div></li>';
+      }).join('') + '</ul>'
+      : '<p class="empty">' + (n.lookedUp ? 'Registret har ikke noget udstyr på bilen.' : 'Skriv det udstyr, bilen har.') + '</p>';
+    html += '<form class="info-add" id="ncEqForm" novalidate><input type="text" id="ncEqNew" data-key="ncEqNew" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Tilføj udstyr, fx anhængertræk" aria-label="Tilføj udstyr">' +
+      '<button class="secondary" type="submit">Tilføj udstyr</button></form></section>';
+    html += '<div class="card note-card" style="margin-top:16px"><label class="label" for="nc-notes">Noter <span style="font-weight:400">(valgfri)</span></label>' +
+      '<textarea id="nc-notes" data-nc="notes" data-key="nc-notes" maxlength="2000" placeholder="Fx skader eller aftaler">' + esc(n.notes) + '</textarea></div>';
+    html += '<div class="finish"><div class="finish-hint">Bilen oprettes i Bilarkivets mappe på Google Drive.</div>' +
+      '<button class="primary" type="button" id="createCarBtn" data-key="createCarBtn" data-action="create-car"' + (n.busy ? ' disabled' : '') + '>' + (n.busy ? 'Opretter …' : 'Opret bil') + '</button></div>';
+    return html;
+  }
+
+  function lookupNow() {
+    var n = S.newCar;
+    if (!n || n.busy) return;
+    var el = $('newReg');
+    var reg = normalizeReg(el ? el.value : n.reg);
+    n.reg = reg; n.error = ''; n.existing = null;
+    if (!/^[A-Z0-9]{2,7}$/.test(reg)) {
+      n.error = reg ? 'Nummerpladen ser forkert ud. En almindelig plade har 2 bogstaver og 5 tal, fx AB12345.' : 'Skriv nummerpladen.';
+      render(true);
+      if ($('newReg')) $('newReg').focus();
+      return;
+    }
+    n.busy = true;
+    render(true);
+    call('lookupPlate', { reg: reg }).then(function (res) {
+      n.busy = false;
+      if (S.newCar !== n) return;
+      if (res.existing) { n.existing = res.existing; render(true); return; }
+      var c = res.car;
+      // Km-standen står tom: den fra seneste syn er målt dengang og vises kun som hjælpetekst.
+      n.f = { model: c.model, year: c.year, firstReg: isoToDa(c.firstReg), fuel: c.fuel, color: c.color, vin: c.vin, km: '' };
+      n.nextInspection = c.nextInspection || '';
+      n.variant = c.variant || '';
+      n.motKm = c.motKm === undefined ? null : c.motKm;
+      n.motDate = c.motDate || '';
+      n.equip = res.equipment.map(function (e) { return { name: e.label || e.name, source: 'dmr', checked: true }; });
+      n.equipmentError = res.equipmentError || '';
+      n.lookedUp = true;
+      n.step = 'form';
+      render(true);
+      window.scrollTo(0, 0);
+    }, function (err) {
+      n.busy = false;
+      if (err.code === 'AUTH') return;
+      n.error = err.message;
+      if (S.newCar === n) { render(true); if ($('newReg')) $('newReg').focus(); }
+    });
+  }
+
+  function manualNewCar() {
+    var n = S.newCar;
+    if (!n || n.busy) return;
+    var reg = normalizeReg($('newReg') ? $('newReg').value : n.reg);
+    n.reg = reg; n.error = ''; n.existing = null;
+    if (!/^[A-Z0-9]{2,7}$/.test(reg)) {
+      n.error = reg ? 'Nummerpladen ser forkert ud. En almindelig plade har 2 bogstaver og 5 tal, fx AB12345.' : 'Skriv nummerpladen.';
+      render(true);
+      if ($('newReg')) $('newReg').focus();
+      return;
+    }
+    n.lookedUp = false; n.equip = []; n.equipmentError = ''; n.step = 'form';
+    render(true);
+    window.scrollTo(0, 0);
+    if ($('nc-model')) $('nc-model').focus();
+  }
+
+  function createCarNow() {
+    var n = S.newCar;
+    if (!n || n.busy) return;
+    var f = n.f;
+    var problem = function (field, text) { n.error = text; n.fieldError = field; render(true); var el = $('nc-' + field); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } };
+    n.error = ''; n.fieldError = '';
+    if (!f.model.trim()) return problem('model', 'Skriv mærke og model.');
+    if (f.year.trim() && !/^(19|20)\d{2}$/.test(f.year.trim())) return problem('year', 'Årgang skal være et årstal, fx 2019.');
+    if (f.km.trim() && !isFinite(parseNumberLoose(f.km))) return problem('km', 'Km skal være et tal, fx 45.230.');
+    var payload = {
+      reg: n.reg, model: f.model, year: f.year, firstReg: f.firstReg, fuel: f.fuel, color: f.color, vin: f.vin, km: f.km.trim() ? parseNumberLoose(f.km) : null,
+      nextInspection: n.nextInspection, variant: n.variant || '', motKm: n.motKm === undefined ? null : n.motKm, motDate: n.motDate || '', notes: n.notes,
+      equipment: n.equip.filter(function (e) { return e.checked; }).map(function (e) { return { name: e.name, source: e.source }; })
+    };
+    n.busy = true;
+    render(true);
+    call('createCar', payload).then(function (res) {
+      n.busy = false;
+      if (res.ok) {
+        S.newCar = null;
+        setState(res.state);
+        go('#/bil/' + encodeURIComponent(res.key));
+        toast('Bilen er oprettet. Bilarkivet henter den, når pc\'en er åben.');
+        return;
+      }
+      if (res.duplicate) {
+        n.step = 'plate'; n.existing = res.duplicate; n.error = '';
+        render(true);
+        loadState(true);
+        return;
+      }
+      problem(res.field || '', res.error);
+    }, function (err) {
+      n.busy = false;
+      if (err.code === 'AUTH') return;
+      n.error = err.message + (err.retry ? ' Bilen er ikke oprettet. Prøv igen, når der er forbindelse.' : '');
+      if (S.newCar === n) { render(true); var el = $('ncError'); if (el) el.scrollIntoView({ block: 'center' }); }
+    });
   }
 
   // ---------- Tjekliste ----------
@@ -1263,7 +1917,10 @@
     var list;
     try { list = JSON.parse(store.get(OPS_STORE) || '[]'); } catch (e) { list = []; }
     if (!Array.isArray(list)) return [];
-    return list.filter(function (op) { return op && QUEUED[op.name] === true && op.arg && typeof op.arg.runId === 'string'; })
+    return list.filter(function (op) {
+      if (!op || QUEUED[op.name] !== true || !op.arg) return false;
+      return op.name === 'saveCarInfo' ? typeof op.arg.carKey === 'string' && !!(op.arg.archiveId || op.arg.pendingId) : typeof op.arg.runId === 'string';
+    })
       .map(function (op) { return { name: op.name, arg: op.arg }; });
   }
 
@@ -1275,7 +1932,8 @@
     S.retryTimer = 0;
     S.sending = true;
     var op = S.ops[0];
-    var runId = op.arg.runId;
+    var isCar = op.name === 'saveCarInfo';
+    var runId = isCar ? '' : op.arg.runId;
     call(op.name, op.arg).then(function (res) {
       S.sending = false;
       S.ops.shift();
@@ -1285,6 +1943,13 @@
       S.netDown = false;
       S.setupError = '';
       S.retries = 0;
+      if (isCar) {
+        carSaved(op, res);
+        refreshRunChrome();
+        updateSync();
+        if (S.ops.length) flush(); else settle(true);
+        return;
+      }
       updateSummary(res.run);
       if (res.skipped) {
         // Punktet er ændret senere (fx på en anden enhed): serveren beholdt den nyere ændring.
@@ -1338,7 +2003,10 @@
       S.netDown = false;
       S.saveFailed = true;
       toast('Ændringen blev ikke gemt: ' + err.message, true);
-      if (!S.pending && S.run && S.run.id === runId) {
+      if (isCar) {
+        delete S.info[op.arg.carKey];     // hent det, der faktisk er gemt
+        if (onCarPage(op.arg.carKey)) render();
+      } else if (!S.pending && S.run && S.run.id === runId) {
         S.run = null;           // hent det, der faktisk er gemt
         refreshRun(runId);
         render();
@@ -1348,7 +2016,51 @@
     });
   }
 
+  /** En ændring af udstyr, fejl eller note er gemt. Er der ikke flere ændringer på vej for bilen, vises det, serveren har. */
+  function conflictBy(by) { return !by || by === 'Bilarkiv' ? 'Bilarkivet' : personName(by); }
+  function persistNoteConflicts() {
+    if (Object.keys(S.noteConflicts).length) store.set('procedurer.noteConflicts', JSON.stringify(S.noteConflicts)); else store.remove('procedurer.noteConflicts');
+  }
+
+  function carSaved(op, res) {
+    var key = op.arg.carKey;
+    var info = S.info[key];
+    if (res.noteConflict) {
+      // Noten er ændret af en anden, mens du skrev: den nye tekst vises, og din bliver stående, så intet går tabt.
+      // Serveren gemte ikke noten. Følgende note-ændringer i køen bygger på samme gamle version og ville ramme samme konflikt: de tages ud
+      // af køen (andre ændringer i dem beholdes), og den nyeste tekst står i beskeden, så banneret passer til det, der faktisk er gemt.
+      var mine = String(op.arg.notes || '');
+      S.ops.forEach(function (o) {
+        if (o.name === 'saveCarInfo' && o.arg.carKey === key && o.arg.notes !== undefined) { mine = String(o.arg.notes); delete o.arg.notes; delete o.arg.notesBase; }
+      });
+      S.ops = S.ops.filter(function (o) { return !(o.name === 'saveCarInfo' && o.arg.carKey === key && o.arg.notes === undefined && !o.arg.equipment && !o.arg.defects); });
+      S.pending = S.ops.length;
+      persistOps();
+      // Også når bilen ikke er åbnet (fx køen sendes ved opstart): konflikten gemmes pr. bil og vises, når bilen åbnes.
+      S.noteConflicts[key] = { mine: mine, by: res.info.notes.by || '', reg: op.arg.carReg || '' };
+      persistNoteConflicts();
+      if (info) {
+        info.equipment = res.info.equipment; info.defects = res.info.defects; info.notes = res.info.notes; info.notesBase = res.info.notes.updatedAt;
+      }
+      var plateReg = op.arg.carReg || (S.state && findCar(key) ? findCar(key).reg : '');
+      toast('Noten til ' + (plateReg ? plateText(plateReg) : 'bilen') + ' blev ændret af ' + conflictBy(res.info.notes.by) + ', mens du skrev. Din tekst blev ikke gemt. Åbn bilen for at se den.', true);
+      if (onCarPage(key)) render();
+      return;
+    }
+    if (res.skipped && res.skipped.some(function (id) { return id !== 'notes'; })) toast('Noget er ændret i Bilarkivet, mens du arbejdede. Din ændring blev ikke gemt.', true);
+    if (op.arg.notes !== undefined && onCarPage(key) && $('noteState') && !(res.skipped && res.skipped.indexOf('notes') >= 0)) $('noteState').textContent = 'Gemt.';
+    if (info) info.notesBase = res.info.notes.updatedAt;
+    if (!info || carOpPending(key)) return;
+    var before = infoSignature(info);
+    info.equipment = res.info.equipment;
+    info.defects = res.info.defects;
+    info.notes = res.info.notes; info.notesBase = res.info.notes.updatedAt;
+    if (onCarPage(key) && before !== infoSignature(info)) render();
+  }
+  function infoSignature(info) { return JSON.stringify([info.equipment.map(function (e) { return [e.id, e.name]; }), info.defects.map(function (d) { return [d.id, d.text, d.fixed, d.photo]; }), info.notes.text]); }
+
   /** Henter kun det, serveren beholdt for den sprungne ændring, ind i den viste tjekliste. Ventende ændringer forsvinder ikke fra skærmen. */
+
   function mergeStale(op, serverRun) {
     var a = op.arg, key;
     if (op.name === 'saveChecklistNote') { key = 'note'; S.run.note = serverRun.note; }
@@ -1370,7 +2082,8 @@
     list.forEach(function (fn) { fn(saved); });
     if (saved && S.resumed && !S.ops.length) {
       S.resumed = 0;
-      toast('Ændringer fra sidst er nu gemt.');
+      if (!Object.keys(S.noteConflicts).length) toast('Ændringer fra sidst er nu gemt.');   // ellers står beskeden om noten, som ikke blev gemt, tilbage
+
       if (S.key) loadState(true);
     }
   }
@@ -1992,10 +2705,24 @@
   // ---------------------------------------------------------------------------
 
   document.addEventListener('submit', function (ev) {
-    if (ev.target.id !== 'pairForm') return;
-    ev.preventDefault();
-    submitPair();
+    var id = ev.target.id;
+    if (id === 'pairForm') { ev.preventDefault(); submitPair(); }
+    else if (id === 'plateForm') { ev.preventDefault(); lookupNow(); }
+    else if (id === 'eqForm') { ev.preventDefault(); submitEquipment(); }
+    else if (id === 'dfForm') { ev.preventDefault(); submitDefect(); }
+    else if (id === 'ncEqForm') {
+      ev.preventDefault();
+      var name = $('ncEqNew').value.replace(/\s+/g, ' ').trim();
+      if (!name || !S.newCar) return;
+      var dup = S.newCar.equip.some(function (e) { return e.name.toLowerCase() === name.toLowerCase(); });
+      if (dup) toast('Det udstyr står allerede på listen.');
+      else S.newCar.equip.push({ name: name, source: 'egen', checked: true });
+      render(true);
+      if ($('ncEqNew')) $('ncEqNew').focus();
+    }
   });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') saveNoteDraft(); });
+  window.addEventListener('pagehide', saveNoteDraft);
   $('syncText').addEventListener('click', function () { toast(this.getAttribute('data-full') || this.textContent, true); });
   $('accountBtn').addEventListener('click', openAccount);
   $('accountAdd').addEventListener('click', addDevice);
@@ -2008,6 +2735,46 @@
     switch (action) {
       case 'reload': S.loadError = ''; render(); loadState(false); return;
       case 'manual-car': openCarDialog(); return;
+      case 'new-car': openNewCar(); return;
+      case 'nc-manual': manualNewCar(); return;
+      case 'nc-reset':
+        if (S.newCar) { S.newCar.step = 'plate'; S.newCar.error = ''; S.newCar.fieldError = ''; S.newCar.existing = null; }
+        render(true);
+        return;
+      case 'nc-open':
+        var existing = S.newCar && S.newCar.existing;
+        if (existing) { S.newCar = null; go('#/bil/' + encodeURIComponent(existing.key)); loadState(true); }
+        return;
+      case 'nc-eq-del':
+        if (S.newCar) { S.newCar.equip.splice(+el.getAttribute('data-i'), 1); render(true); }
+        return;
+      case 'create-car': createCarNow(); return;
+      case 'info-retry':
+        var shownCar = currentCar();
+        if (shownCar) { delete S.info[shownCar.key]; render(); }
+        return;
+      case 'note-mine':
+        var mineCar = currentCar();
+        var mineConflict = mineCar && S.noteConflicts[mineCar.key];
+        if (mineConflict) {
+          delete S.noteConflicts[mineCar.key];
+          persistNoteConflicts();
+          S.noteDraft = { key: mineCar.key, text: mineConflict.mine };
+          saveNoteDraft();
+          render(true);
+        }
+        return;
+      case 'note-dismiss':
+        var dismissCar = currentCar();
+        if (dismissCar && S.noteConflicts[dismissCar.key]) { delete S.noteConflicts[dismissCar.key]; persistNoteConflicts(); render(true); }
+        return;
+      case 'eq-del': removeInfoItem('equipment', el.getAttribute('data-id')); return;
+
+      case 'df-del': removeInfoItem('defects', el.getAttribute('data-id')); return;
+      case 'photo-retry':
+        var photoCar = currentCar();
+        if (photoCar) retryPhotos(photoCar.key);
+        return;
       case 'start': startRun(el); return;
       case 'retry-run': S.runError = ''; render(); return;
       case 'retry-save':
@@ -2051,6 +2818,32 @@
 
   document.addEventListener('change', function (ev) {
     var el = ev.target;
+    if (el.hasAttribute('data-df-fix')) { toggleDefect(el); return; }
+    if (el.id === 'carNote') {
+      var noteCar = currentCar();
+      if (noteCar) { S.noteDraft = { key: noteCar.key, text: el.value }; saveNoteDraft(); }
+      return;
+    }
+    if (el.id === 'carPhotos') {
+      var photosCar = currentCar();
+      var picked = Array.prototype.slice.call(el.files || []);
+      el.value = '';
+      if (photosCar && picked.length) addPhotos(photosCar, picked);
+      return;
+    }
+    if (el.id === 'dfPhoto') {
+      var dfCar = currentCar();
+      var file = el.files && el.files[0];
+      S.dfPhoto = dfCar && file ? { key: dfCar.key, file: file } : null;
+      var label = $('dfPhotoBtn');
+      if (label) label.childNodes[0].nodeValue = S.dfPhoto ? 'Billede valgt ✓' : 'Billede';
+      return;
+    }
+    if (el.hasAttribute('data-nc-eq') && S.newCar) {
+      S.newCar.equip[+el.getAttribute('data-nc-eq')].checked = el.checked;
+      if ($('ncEqCount')) $('ncEqCount').textContent = ncEquipCount(S.newCar);
+      return;
+    }
     if (el.id === 'histProc') { S.hist.proc = el.value; $('histList').innerHTML = historyList(); return; }
     if (el.id === 'histStatus') { S.hist.status = el.value; $('histList').innerHTML = historyList(); return; }
     if (el.hasAttribute('data-bind') && S.editor) {
@@ -2121,7 +2914,30 @@
 
   document.addEventListener('input', function (ev) {
     var el = ev.target;
-    if (el.id === 'carSearch') { S.search = el.value; $('carLists').innerHTML = carLists(); return; }
+    if (el.id === 'newReg' && S.newCar) {
+      var cleaned = el.value.replace(/[^A-Za-z0-9 ]/g, '');
+      if (cleaned !== el.value) el.value = cleaned;
+      S.newCar.reg = cleaned;
+      return;
+    }
+    if (el.hasAttribute('data-nc') && S.newCar) {
+      var field = el.getAttribute('data-nc');
+      if (field === 'notes') S.newCar.notes = el.value; else S.newCar.f[field] = el.value;
+      if (el.getAttribute('aria-invalid')) el.removeAttribute('aria-invalid');
+      return;
+    }
+    if (el.id === 'carNote') {
+      var typingCar = currentCar();
+      if (typingCar) {
+        S.noteDraft = { key: typingCar.key, text: el.value };
+        clearTimeout(S.noteTimer);
+        S.noteTimer = setTimeout(saveNoteDraft, 1500);
+        if ($('noteState')) $('noteState').textContent = 'Gemmes automatisk.';
+      }
+      return;
+    }
+    if (el.id === 'carSearch') {
+ S.search = el.value; $('carLists').innerHTML = carLists(); return; }
     if (el.id === 'histSearch') { S.hist.q = el.value; S.hist.limit = 200; $('histList').innerHTML = historyList(); return; }
     if (el.hasAttribute('data-bind') && S.editor && el.type !== 'checkbox' && el.tagName !== 'SELECT') {
       var b = bindPath(el.getAttribute('data-bind'));
