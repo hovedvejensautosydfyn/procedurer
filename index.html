@@ -373,6 +373,36 @@
   @media (pointer: coarse) { .icon-btn { width: 44px; height: 44px; } }
   @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } input.plate-field { font-size: 28px; } }
 
+  /* Opgaver og bilvælger */
+  .row.task-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .row.task-row .row-side { grid-column: auto; }
+  .task-row .row-sub { white-space: normal; }
+  .chev { font-size: 22px; color: var(--muted); line-height: 1; }
+  .task-start { padding: 18px 20px; }
+  .car-pick-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .car-pick-text { flex: 1; min-width: 140px; color: var(--muted); font-size: 14px; }
+  .run-car { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; padding: 12px 16px; margin: 14px 0 0; }
+  .run-car .label { margin: 0; }
+  .run-car-text { flex: 1; min-width: 120px; font-size: 14px; color: var(--muted); }
+  .offer { margin-top: 16px; flex-wrap: wrap; }
+  .pick-dialog { width: min(520px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); }
+  .pick-body { padding: 18px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100dvh - 34px); }
+  .pick-body h2 { margin: 0; }
+  .pick-list { overflow-y: auto; min-height: 120px; max-height: 46dvh; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  .pick-list .row { grid-template-columns: auto minmax(0, 1fr); }
+  .pick-manual > summary { cursor: pointer; font-weight: 500; font-size: 14.5px; padding: 6px 0; }
+  .pick-manual form { padding: 10px 0 0; }
+  .pick-body .dialog-actions { margin-top: 0; flex-wrap: wrap; }
+  .row.proc-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .proc-usage { display: block; margin-top: 6px; }
+  .ed-order { display: flex; gap: 0; }
+  .seg-wrap { max-width: 100%; }
+  @media (max-width: 600px) {
+    .row.proc-row { grid-template-columns: minmax(0, 1fr); }
+    .row.proc-row .row-side { grid-column: 1; justify-content: flex-start; }
+    .row.proc-row .row-side .secondary { margin-left: auto; }
+  }
+
   /* Parring og adgang */
   body.unpaired .tabs, body.unpaired .top-actions { display: none; }
   .pair { max-width: 460px; margin: 4vh auto 0; }
@@ -446,6 +476,7 @@
 </header>
 <nav class="tabs" aria-label="Sider">
   <a href="#/biler" data-tab="biler">Biler</a>
+  <a href="#/opgaver" data-tab="opgaver">Opgaver</a>
   <a href="#/historik" data-tab="historik">Historik</a>
   <a href="#/procedurer" data-tab="procedurer">Procedurer</a>
 </nav>
@@ -475,6 +506,27 @@
       <button class="primary" type="submit">Fortsæt</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="pickDialog" class="pick-dialog" aria-labelledby="pickTitle">
+  <div class="pick-body">
+    <h2 id="pickTitle">Vælg bil</h2>
+    <input type="search" id="pickSearch" placeholder="Søg på reg.nr. eller model" aria-label="Søg i biler" autocomplete="off">
+    <ul class="list pick-list" id="pickList"></ul>
+    <details class="pick-manual" id="pickManual">
+      <summary>Bil uden for Bilarkivet</summary>
+      <form id="pickManualForm" novalidate>
+        <div class="field"><label for="pickReg">Reg.nr.</label><input id="pickReg" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" placeholder="AB12345"></div>
+        <div class="field"><label for="pickModel">Mærke og model</label><input id="pickModel" type="text" autocomplete="off" maxlength="120" placeholder="fx VW Golf 1.5 TSI"></div>
+        <p class="form-error" id="pickError" role="alert" hidden></p>
+        <button class="primary" type="submit">Brug denne bil</button>
+      </form>
+    </details>
+    <div class="dialog-actions">
+      <button class="secondary" type="button" id="pickNone">Ingen bil</button>
+      <button class="secondary" type="button" id="pickCancel">Annullér</button>
+    </div>
+  </div>
 </dialog>
 
 <dialog id="confirmDialog" aria-labelledby="confirmTitle">
@@ -583,8 +635,9 @@
   var OPS_STORE = 'procedurer.ops';
   var SKEW_STORE = 'procedurer.skew';       // serverens ur minus enhedens (ms)
   var LASTAT_STORE = 'procedurer.lastAt';   // tidspunktet for den seneste ændring, så tidspunkter kun går fremad
-  var QUEUED = { answerChecklistItem: true, skipChecklistSection: true, saveChecklistNote: true, saveCarInfo: true }; // kan sendes igen uden skade
-  var NEW_FUNCTIONS = { lookupPlate: true, createCar: true, getCarInfo: true, saveCarInfo: true, uploadPhoto: true };
+  var QUEUED = { answerChecklistItem: true, skipChecklistSection: true, saveChecklistNote: true, saveCarInfo: true, setChecklistCar: true }; // kan sendes igen uden skade
+  // Funktioner, som en ældre serverkode ikke kender. Svarer den "Ukendt handling.", skjules den del af appen.
+  var NEW_FUNCTIONS = { lookupPlate: 'cars', createCar: 'cars', getCarInfo: 'cars', saveCarInfo: 'cars', uploadPhoto: 'cars', setChecklistCar: 'tasks', moveProcedure: 'tasks' };
   var NEEDS_NEW_SERVER = 'Kræver ny serverversion';
   var PHOTO_TIMEOUT_MS = window.PROCEDURER_PHOTO_TIMEOUT_MS || 120000;  // et billede er flere MB og kan tage tid på dårligt net
   var PHOTO_MAX_SIDE = 2560;                                            // længste side i pixel, når et billede skaleres
@@ -652,7 +705,10 @@
       if (err.code === 'SERVER' && /^Regnearket er optaget/.test(err.message)) err.retry = true;
 
       // Den gamle serverkode kender ikke de nye funktioner: skjul dem i stedet for at vise fejl.
-      if (NEW_FUNCTIONS[name] && err.code === 'INPUT' && err.message === 'Ukendt handling.') { S.legacyServer = true; if (S.state) render(); }
+      if (NEW_FUNCTIONS[name] && err.code === 'INPUT' && err.message === 'Ukendt handling.') {
+        if (NEW_FUNCTIONS[name] === 'tasks') { S.noTasks = true; err.message = NEEDS_NEW_SERVER + '.'; } else S.legacyServer = true;
+        if (S.state) render();
+      }
       throw err;
     }, function (err) {
       clearTimeout(timer);
@@ -814,7 +870,7 @@
     S.key = '';
     S.ops = []; S.pending = 0; S.sending = false; S.netDown = false; S.setupError = ''; S.retries = 0; S.resumed = 0; S.saveFailed = false;
     S.state = null; S.run = null; S.runError = ''; S.loadError = ''; S.loadingRun = null;
-    S.editor = null; S.editorFor = null; S.dirty = false; S.finishing = false; S.manualCars = {}; S.info = {}; S.newCar = null; S.uploads = {}; S.noteConflicts = {}; store.remove('procedurer.noteConflicts');
+    S.editor = null; S.editorFor = null; S.dirty = false; S.finishing = false; S.manualCars = {}; S.info = {}; S.newCar = null; S.uploads = {}; S.noteConflicts = {}; S.taskStart = null; S.noTasks = false; store.remove('procedurer.noteConflicts');
     S.pairNotice = notice + (lost ? ' Ændringer, der ikke var gemt, er gået tabt.' : '');
     S.hash = '#/biler';
     history.replaceState(null, '', S.hash);
@@ -868,6 +924,7 @@
       out.push(c);
     });
     S.state.runs.forEach(function (r) {
+      if (!hasCar(r.car)) return;   // en opgave uden bil er ikke en bil
       var k = keyOf(r);
       if (known[k]) return;
       known[k] = true;
@@ -889,6 +946,52 @@
     return S.state.procedures.filter(function (p) { return p.status !== 'Arkiveret'; });
   }
 
+  // ---------- Opgaver: Vises under (Biler / Opgaver / begge) ----------
+  var SCOPE_LABELS = { cars: 'Biler', tasks: 'Opgaver', both: 'Biler og opgaver' };
+  /** Kan serveren Opgaver? Den forrige serverkode sender ikke features, og den kender ikke setChecklistCar. */
+  function tasksServer() { return !S.noTasks && !!(S.state && S.state.features && S.state.features.tasks); }
+  function scopeOf(p) { return p.scope === 'tasks' || p.scope === 'both' ? p.scope : 'cars'; }
+  /** Procedurerne på bilens side. Med den gamle server vises alle, som før. */
+  function carProcedures() { return activeProcedures().filter(function (p) { return !tasksServer() || scopeOf(p) !== 'tasks'; }); }
+  function taskProcedures() { return tasksServer() ? activeProcedures().filter(function (p) { return scopeOf(p) !== 'cars'; }) : []; }
+  function hasCar(car) { return !!(car && (car.archiveId || car.reg || car.model)); }
+  /** Nummerpladen, "Uden reg.nr." eller (en opgave uden bil) "Ingen bil". */
+  function carPlate(car, big) {
+    return hasCar(car) ? plate(car.reg, big) : '<span class="plate none' + (big ? ' big' : '') + '">Ingen bil</span>';
+  }
+  /** Titlen i en liste: "Indbytning · VW Golf", eller kun procedurens navn, når der ikke er en model. */
+  function runTitle(r) { return esc(r.procedureName) + (r.car && r.car.model ? ' · ' + esc(r.car.model) : ''); }
+
+  /** Samme regel som runPlate i Logic.gs: opgavens bil, ellers svaret på et tekstpunkt om reg.nr. */
+  function runPlate(run) {
+    var candidates = [run.car && run.car.reg];
+    (run.sections || []).forEach(function (s) {
+      if (run.skipped && run.skipped[s.id]) return;
+      s.items.forEach(function (it) {
+        var a = run.answers && run.answers[it.id];
+        if (it.type === 'text' && a && typeof a.value === 'string' && /reg\.?\s*nr|nummerplade/i.test(it.text)) candidates.push(a.value);
+      });
+    });
+    for (var i = 0; i < candidates.length; i++) {
+      var reg = normalizeReg(candidates[i]);
+      if (/^[A-Z0-9]{2,7}$/.test(reg)) return reg;
+    }
+    return '';
+  }
+  /** Findes bilen allerede (i Bilarkivet eller blandt de nye biler fra telefonen)? */
+  function knownCarFor(run) {
+    if (run.car && run.car.archiveId && S.archiveIds && S.archiveIds[run.car.archiveId]) return findCar('a:' + run.car.archiveId);
+    var reg = runPlate(run);
+    if (!reg) return null;
+    var key = S.regMap && S.regMap[reg];
+    if (key) return findCar(key);
+    return pendingCars().filter(function (c) { return c.reg === reg; })[0] || null;
+  }
+  /** "Opret indbytningsbilen" vises på en afsluttet opgave, der tilbyder det, når bilen ikke findes endnu. */
+  function offersCar(run) {
+    return !!(run && run.task && run.offerCar && run.status === STATUS.DONE && tasksServer() && newServer() && !knownCarFor(run));
+  }
+
   function runsFor(key, procedureId) {
     return S.state.runs.filter(function (r) { return keyOf(r) === key && (!procedureId || r.procedureId === procedureId); });
   }
@@ -897,7 +1000,8 @@
     return {
       id: run.id, procedureId: run.procedureId, procedureName: run.procedureName, car: run.car, key: run.key,
       status: run.status, progress: progressText(run.progress), startedAt: run.startedAt, startedBy: run.startedBy,
-      finishedAt: run.finishedAt || 0, finishedBy: run.finishedBy, note: run.note.length > 160 ? run.note.slice(0, 157) + '…' : run.note
+      finishedAt: run.finishedAt || 0, finishedBy: run.finishedBy, note: run.note.length > 160 ? run.note.slice(0, 157) + '…' : run.note,
+      task: run.task === true
     };
   }
   function updateSummary(run) {
@@ -1004,7 +1108,9 @@
     var r = parseRoute();
     document.querySelectorAll('.tabs a').forEach(function (a) {
       var tab = a.getAttribute('data-tab');
-      var on = tab === r.name || (tab === 'biler' && (r.name === 'bil' || r.name === 'tjekliste' || r.name === 'ny-bil')) || (tab === 'procedurer' && r.name === 'procedure');
+      var taskRun = r.name === 'tjekliste' && S.run && S.run.id === r.arg && S.run.task === true;
+      var on = tab === r.name || (tab === 'biler' && (r.name === 'bil' || (r.name === 'tjekliste' && !taskRun) || r.name === 'ny-bil')) ||
+        (tab === 'opgaver' && (r.name === 'opgave' || taskRun)) || (tab === 'procedurer' && r.name === 'procedure');
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
 
@@ -1019,6 +1125,8 @@
     if (r.name === 'bil') html = viewCar(r.arg);
     else if (r.name === 'tjekliste') html = viewRun(r.arg);
     else if (r.name === 'ny-bil') html = viewNewCar();
+    else if (r.name === 'opgaver') html = viewTasks();
+    else if (r.name === 'opgave') html = viewTaskStart(r.arg);
     else if (r.name === 'historik') html = viewHistory();
     else if (r.name === 'procedurer') html = viewProcedures();
     else if (r.name === 'procedure') html = viewEditor(r.arg);
@@ -1055,7 +1163,7 @@
   }
 
   function carStatusPills(car) {
-    return activeProcedures().map(function (p) {
+    return carProcedures().map(function (p) {
       var runs = runsFor(car.key, p.id);
       var open = runs.filter(function (r) { return r.status === STATUS.OPEN; })[0];
       if (open) return '<span class="pill open">' + esc(p.name) + ' i gang · ' + esc(open.progress) + '</span>';
@@ -1102,7 +1210,8 @@
     var q = S.search.trim();
     var archive = archiveCars();
     var others = otherCars(archive);
-    var open = S.state.runs.filter(function (r) { return r.status === STATUS.OPEN; });
+    // Opgaver, der er i gang, står under Opgaver (og på bilens side, hvis de har en bil).
+    var open = S.state.runs.filter(function (r) { return r.status === STATUS.OPEN && !r.task; });
     var stock = archive.filter(function (c) { return c.status !== 'solgt' && matches(c, q); });
     var sold = archive.filter(function (c) { return c.status === 'solgt' && matches(c, q); });
     var waiting = others.filter(function (c) { return c.pending && matches(c, q); });
@@ -1111,8 +1220,8 @@
 
     if (open.length && !q) {
       html += '<h3>I gang</h3><div class="card"><ul class="list">' + open.map(function (r) {
-        return '<li><a class="row" href="#/tjekliste/' + encodeURIComponent(r.id) + '">' + plate(r.car.reg) +
-          '<span class="row-main"><span class="row-title">' + esc(r.procedureName) + ' · ' + esc(r.car.model) + '</span>' +
+        return '<li><a class="row" href="#/tjekliste/' + encodeURIComponent(r.id) + '">' + carPlate(r.car) +
+          '<span class="row-main"><span class="row-title">' + runTitle(r) + '</span>' +
           '<span class="row-sub">Startet ' + esc(fmtWhen(r.startedAt)) + ' af ' + esc(personName(r.startedBy)) + '</span></span>' +
           '<span class="row-side"><span class="pill open">' + esc(r.progress) + '</span></span></a></li>';
       }).join('') + '</ul></div>';
@@ -1132,6 +1241,183 @@
     return html;
   }
 
+  // ---------- Opgaver ----------
+  // Procedurer, der ikke er bundet til én bil på forhånd (Vises under: Opgaver eller begge). En opgave kan startes uden bil,
+  // og bilen kan sættes eller skiftes undervejs. Har den en bil, står den også på bilens side.
+
+  function viewTasks() {
+    var html = '<div class="head"><div><h1>Opgaver</h1><p class="muted">Tjeklister, der ikke hører til én bil på forhånd. Vælg en opgave for at starte den.</p></div>' +
+      (tasksServer() ? '<a class="secondary" style="text-decoration:none" href="#/procedure/ny-opgave">Ny opgave-procedure</a>' : '') + '</div>';
+    if (!tasksServer()) {
+      return html + '<div class="banner warn" role="status"><span><b>' + NEEDS_NEW_SERVER + '.</b> Serveren skal opdateres, før Opgaver kan bruges. Alt andet virker som før.</span></div>';
+    }
+    html += problemsBanner();
+    var open = S.state.runs.filter(function (r) { return r.task && r.status === STATUS.OPEN; });
+    if (open.length) {
+      html += '<h3>I gang</h3><div class="card"><ul class="list">' + open.map(function (r) {
+        return '<li><a class="row" href="#/tjekliste/' + encodeURIComponent(r.id) + '">' + carPlate(r.car) +
+          '<span class="row-main"><span class="row-title">' + runTitle(r) + '</span>' +
+          '<span class="row-sub">Startet ' + esc(fmtWhen(r.startedAt)) + ' af ' + esc(personName(r.startedBy)) + '</span></span>' +
+          '<span class="row-side"><span class="pill open">' + esc(r.progress) + '</span></span></a></li>';
+      }).join('') + '</ul></div>';
+    }
+    var procs = taskProcedures();
+    html += '<h3>Start en opgave</h3>';
+    html += procs.length ? '<div class="card"><ul class="list">' + procs.map(function (p) {
+      return '<li><a class="row task-row" href="#/opgave/' + encodeURIComponent(p.id) + '"><span class="row-main"><span class="row-title">' + esc(p.name) + '</span>' +
+        (p.description ? '<span class="row-sub">' + esc(p.description) + '</span>' : '') + '</span><span class="row-side"><span class="chev" aria-hidden="true">›</span></span></a></li>';
+    }).join('') + '</ul></div>'
+      : '<div class="card"><p class="empty">Der er ingen procedurer under Opgaver. Opret en under <a href="#/procedurer">Procedurer</a>, og vælg Vises under: Opgaver.</p></div>';
+    var recent = S.state.runs.filter(function (r) { return r.task && r.status !== STATUS.OPEN; }).sort(function (a, b) { return (b.finishedAt || 0) - (a.finishedAt || 0); }).slice(0, 5);
+    if (recent.length) {
+      html += '<h3>Senest afsluttet eller annulleret</h3><div class="card"><ul class="list">' + recent.map(runRow).join('') + '</ul></div>' +
+        '<p class="muted" style="font-size:13.5px;margin:8px 4px 0">Alle opgaver står i <a href="#/historik">Historik</a>.</p>';
+    }
+    return html;
+  }
+
+  function carLabel(car) {
+    if (!hasCar(car)) return 'Ingen bil';
+    return (car.reg ? plateText(car.reg) : 'Uden reg.nr.') + (car.model ? ' · ' + car.model : '');
+  }
+
+  function viewTaskStart(procId) {
+    var back = '<a class="back" href="#/opgaver">' + ICONS.back + 'Opgaver</a>';
+    var p = S.state.procedures.filter(function (x) { return x.id === procId; })[0];
+    if (!tasksServer()) return back + '<h1>Opgave</h1><div class="banner warn" role="status"><span><b>' + NEEDS_NEW_SERVER + '.</b></span></div>';
+    if (!p || p.status === 'Arkiveret' || scopeOf(p) === 'cars') return back + '<h1>Opgaven blev ikke fundet</h1><p class="muted">Proceduren er måske arkiveret eller vises ikke under Opgaver.</p>';
+    if (!S.taskStart || S.taskStart.procId !== procId) S.taskStart = { procId: procId, car: null, busy: false };
+    var t = S.taskStart;
+    var n = p.sections.reduce(function (s, x) { return s + x.items.length; }, 0);
+    var html = back + '<div class="head"><div><h1>' + esc(p.name) + '</h1>' + (p.description ? '<p class="muted">' + esc(p.description) + '</p>' : '') + '</div></div>';
+    html += '<div class="card task-start"><span class="label" id="taskCarLabel">Bil</span>' +
+      '<div class="car-pick-line">' + carPlate(t.car) + '<span class="car-pick-text">' + esc(hasCar(t.car) ? (t.car.model || '') : 'Opgaven startes uden bil. Bilen kan tilføjes undervejs.') + '</span>' +
+      '<button class="secondary" type="button" data-action="task-pick-car" data-key="taskPickCar" aria-describedby="taskCarLabel"' + (t.busy ? ' disabled' : '') + '>' + (hasCar(t.car) ? 'Skift bil' : 'Vælg bil') + '</button></div>' +
+      '<p class="muted" style="font-size:13.5px;margin:12px 0 0">' + p.sections.length + ' afsnit · ' + n + (n === 1 ? ' punkt' : ' punkter') + '</p></div>';
+    html += '<div class="finish"><div class="finish-hint">Svarene gemmes med det samme, så du kan fortsætte senere eller på pc\'en.</div>' +
+      '<button class="primary" type="button" data-action="task-start" data-key="taskStart"' + (t.busy ? ' disabled' : '') + '>' + (t.busy ? 'Starter …' : 'Start') + '</button></div>';
+    return html;
+  }
+
+  /** Bilen fra bilvælgeren som argument til serveren. */
+  function carArg(choice) {
+    if (!choice || !hasCar(choice)) return { none: true };
+    if (choice.archiveId) return { archiveId: choice.archiveId };
+    return { manual: { reg: choice.reg, model: choice.model } };
+  }
+
+  function startTask() {
+    var t = S.taskStart;
+    if (!t || t.busy) return;
+    var p = S.state.procedures.filter(function (x) { return x.id === t.procId; })[0];
+    if (!p) return;
+    t.busy = true;
+    render(true);
+    call('startChecklist', Object.assign({ procedureId: p.id, task: true }, carArg(t.car))).then(function (res) {
+      t.busy = false;
+      S.taskStart = null;
+      setState(res.state);
+      S.run = res.run;
+      go('#/tjekliste/' + encodeURIComponent(res.run.id), { replace: true });
+      if (res.existing) toast('Der var allerede en tjekliste "' + p.name + '" i gang på bilen. Den er åbnet.');
+    }, function (err) {
+      t.busy = false;
+      if (err.code === 'AUTH') return;
+      render(true);
+      toast(err.message + (err.retry ? ' Opgaven er ikke startet.' : ''), true);
+    });
+  }
+
+  // ---------- Bilvælger (start af en opgave og bil på en opgave) ----------
+  // Svarer med { archiveId, reg, model } (Bilarkivet), { archiveId: '', reg, model } (uden for Bilarkivet eller en ny bil, der
+  // venter på Bilarkivet), { none: true } (ingen bil) eller null (annulleret).
+
+  var pick = { resolve: null, q: '' };
+  function pickCars() {
+    var all = archiveCars().filter(function (c) { return c.status !== 'solgt'; })
+      .concat(pendingCars())
+      .concat(archiveCars().filter(function (c) { return c.status === 'solgt'; }));
+    var q = pick.q.trim();
+    var hits = all.filter(function (c) { return matches(c, q); });
+    return { list: hits.slice(0, q ? 40 : 25), more: Math.max(0, hits.length - (q ? 40 : 25)) };
+  }
+  function pickListHtml() {
+    var res = pickCars();
+    var html = res.list.map(function (c) {
+      var sub = c.pending ? 'Venter på Bilarkivet' : c.status === 'solgt' ? 'Solgt ' + fmtIsoDate(c.soldDate) : 'På lager';
+      return '<li><button class="row" type="button" data-pick-key="' + esc(c.key) + '">' + plate(c.reg) +
+        '<span class="row-main"><span class="row-title">' + esc(c.model || 'Ukendt model') + '</span><span class="row-sub">' + esc([c.year, sub].filter(Boolean).join(' · ')) + '</span></span></button></li>';
+    }).join('');
+    if (!html) html = '<li><p class="empty">' + (S.state.archive.ok ? 'Ingen biler passer til søgningen.' : 'Bilarkivet kan ikke læses lige nu. Brug Bil uden for Bilarkivet.') + '</p></li>';
+    if (res.more) html += '<li><p class="empty">' + res.more + ' biler mere – søg for at finde dem.</p></li>';
+    return html;
+  }
+  function pickCar(opts) {
+    opts = opts || {};
+    var dlg = $('pickDialog');
+    pick.q = '';
+    $('pickSearch').value = '';
+    $('pickList').innerHTML = pickListHtml();
+    $('pickNone').hidden = opts.allowNone === false;
+    $('pickReg').value = opts.reg || '';
+    $('pickModel').value = '';
+    $('pickError').hidden = true;
+    $('pickManual').open = !!opts.reg;
+    if (pick.resolve) pick.resolve(null);
+    return new Promise(function (resolve) {
+      pick.resolve = resolve;
+      dlg.showModal();
+      $('pickSearch').focus();
+    });
+  }
+  function pickDone(value) {
+    var r = pick.resolve;
+    pick.resolve = null;
+    if ($('pickDialog').open) $('pickDialog').close();
+    if (r) r(value);
+  }
+  $('pickDialog').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-pick-key]');
+    if (b) {
+      var c = findCar(b.getAttribute('data-pick-key'));
+      if (c) pickDone({ archiveId: c.archiveId || '', reg: c.reg || '', model: c.model || '' });
+      return;
+    }
+    if (ev.target.closest('#pickNone')) { pickDone({ none: true }); return; }
+    if (ev.target.closest('#pickCancel')) pickDone(null);
+  });
+  $('pickDialog').addEventListener('cancel', function (ev) { ev.preventDefault(); pickDone(null); });
+  $('pickSearch').addEventListener('input', function () { pick.q = this.value; $('pickList').innerHTML = pickListHtml(); });
+  $('pickManualForm').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var reg = normalizeReg($('pickReg').value);
+    var model = $('pickModel').value.replace(/\s+/g, ' ').trim();
+    var error = !reg && !model ? 'Skriv bilens reg.nr. eller model.'
+      : reg && (reg.length > 10 || !/^[A-ZÆØÅ0-9]+$/.test(reg)) ? 'Reg.nr. må kun indeholde bogstaver og tal (højst 10).'
+      : model.length > 120 ? 'Modellen må højst være 120 tegn.' : '';
+    if (error) { $('pickError').textContent = error; $('pickError').hidden = false; return; }
+    // Står pladen i Bilarkivet, bruges bilen dér (som på serveren).
+    var inArchive = reg && archiveCars().filter(function (c) { return c.reg === reg; })[0];
+    if (inArchive) { toast('Bilen står i Bilarkivet og er valgt dér.'); pickDone({ archiveId: inArchive.archiveId, reg: inArchive.reg, model: inArchive.model }); return; }
+    pickDone({ archiveId: '', reg: reg, model: model });
+  });
+
+  /** Sætter, skifter eller fjerner bilen på den åbne opgave. Vises med det samme og sendes i køen (virker uden forbindelse). */
+  function changeRunCar() {
+    var run = S.run;
+    if (!run || !run.task || run.status !== STATUS.OPEN) return;
+    pickCar({ allowNone: hasCar(run.car) }).then(function (choice) {
+      if (!choice || S.run !== run || run.status !== STATUS.OPEN) return;
+      var car = choice.none ? { archiveId: '', reg: '', model: '' } : { archiveId: choice.archiveId || '', reg: choice.reg || '', model: choice.model || '' };
+      run.car = car;
+      run.key = carKey(car);
+      updateSummary(run);
+      save('setChecklistCar', Object.assign({ runId: run.id }, carArg(choice)));
+      render();
+      toast(choice.none ? 'Bilen er fjernet fra opgaven.' : 'Bilen er sat på opgaven.');
+    });
+  }
+
   // ---------- Én bil ----------
 
   function viewCar(key) {
@@ -1146,7 +1432,7 @@
       '<div class="car-head">' + plate(car.reg, true) + '<h1>' + esc(car.model || 'Ukendt model') + '</h1></div>' +
       '<p class="muted" style="margin:6px 0 0">' + esc([car.year, status].filter(Boolean).join(' · ')) + '</p>' + archiveBanner();
 
-    var procs = activeProcedures();
+    var procs = carProcedures();
     html += '<div class="proc-grid">' + (procs.length ? procs.map(function (p) { return procCard(car, p); }).join('')
       : '<div class="card"><p class="empty">Der er ingen procedurer endnu. Opret en under <a href="#/procedurer">Procedurer</a>.</p></div>') + '</div>';
 
@@ -1184,9 +1470,9 @@
   function runRow(r) {
     var when = r.status === STATUS.OPEN ? 'Startet ' + fmtWhen(r.startedAt) + ' af ' + personName(r.startedBy)
       : (r.status === STATUS.DONE ? 'Gennemført ' : 'Annulleret ') + fmtWhen(r.finishedAt) + ' af ' + personName(r.finishedBy);
-    return '<li><a class="row" href="#/tjekliste/' + encodeURIComponent(r.id) + '">' + plate(r.car.reg) +
-      '<span class="row-main"><span class="row-title">' + esc(r.procedureName) + ' · ' + esc(r.car.model) + '</span>' +
-      '<span class="row-sub">' + esc(when) + (r.note ? ' · ' + esc(r.note) : '') + '</span></span>' +
+    return '<li><a class="row" href="#/tjekliste/' + encodeURIComponent(r.id) + '">' + carPlate(r.car) +
+      '<span class="row-main"><span class="row-title">' + runTitle(r) + '</span>' +
+      '<span class="row-sub">' + (r.task ? 'Opgave · ' : '') + esc(when) + (r.note ? ' · ' + esc(r.note) : '') + '</span></span>' +
       '<span class="row-side">' + (r.status === STATUS.OPEN ? '<span class="pill open">' + esc(r.progress) + '</span>' : statusPill(r.status)) + '</span></a></li>';
   }
 
@@ -1581,11 +1867,16 @@
   }
 
   function viewPlateStep(n) {
-    var html = '<a class="back" href="#/biler">' + ICONS.back + 'Biler</a><div class="head"><div><h1>Ny bil</h1>' +
-      '<p class="muted">Skriv nummerpladen. Så henter appen bilens oplysninger og udstyr fra registret.</p></div></div>';
+    var html = (n.runId ? '<a class="back" href="#/tjekliste/' + encodeURIComponent(n.runId) + '">' + ICONS.back + 'Opgaven</a>' : '<a class="back" href="#/biler">' + ICONS.back + 'Biler</a>') +
+      '<div class="head"><div><h1>Ny bil</h1>' +
+      '<p class="muted">' + (n.runId ? 'Indbytningsbilen oprettes i Bilarkivet, og opgaven kobles til den. ' + (n.reg ? 'Nummerpladen er hentet fra opgaven. Tryk Slå op.' : 'Skriv nummerpladen.')
+        : 'Skriv nummerpladen. Så henter appen bilens oplysninger og udstyr fra registret.') + '</p></div></div>';
+    if (n.wishPlates) {
+      html += '<div class="banner warn" role="status"><span><b>Sælger beholder sine ønskeplader.</b> Skriv bilens nye reg.nr. Kendes det ikke endnu, så vent med at oprette bilen. Knappen Opret indbytningsbilen bliver stående på opgaven.</span></div>';
+    }
     if (n.existing) {
       html += '<div class="banner" role="status"><span><b>' + (n.existing.kind === 'archive' ? 'Bilen findes allerede i Bilarkivet.' : 'Bilen er allerede oprettet og venter på Bilarkivet.') + '</b> ' +
-        esc(n.existing.model) + '</span><button class="secondary" type="button" data-action="nc-open">Åbn bilen</button></div>';
+        esc(n.existing.model) + (n.runId ? ' Opgaven kobles til den, når du åbner den.' : '') + '</span><button class="secondary" type="button" data-action="nc-open">Åbn bilen</button></div>';
     }
     if (n.error) html += '<div class="banner error" role="alert"><span>' + esc(n.error) + '</span></div>';
     html += '<form class="card plate-card" id="plateForm" novalidate><label class="label" for="newReg">Nummerplade</label>' +
@@ -1663,7 +1954,8 @@
       if (res.existing) { n.existing = res.existing; render(true); return; }
       var c = res.car;
       // Km-standen står tom: den fra seneste syn er målt dengang og vises kun som hjælpetekst.
-      n.f = { model: c.model, year: c.year, firstReg: isoToDa(c.firstReg), fuel: c.fuel, color: c.color, vin: c.vin, km: '' };
+      // Fra en indbytning: km-standen fra tjeklisten (målt nu).
+      n.f = { model: c.model, year: c.year, firstReg: isoToDa(c.firstReg), fuel: c.fuel, color: c.color, vin: c.vin, km: n.runKm || '' };
       n.nextInspection = c.nextInspection || '';
       n.variant = c.variant || '';
       n.motKm = c.motKm === undefined ? null : c.motKm;
@@ -1694,6 +1986,8 @@
       return;
     }
     n.lookedUp = false; n.equip = []; n.equipmentError = ''; n.step = 'form';
+    if (!n.f.model && n.runModel) n.f.model = n.runModel;   // modellen og km-standen fra opgaven
+    if (!n.f.km && n.runKm) n.f.km = n.runKm;
     render(true);
     window.scrollTo(0, 0);
     if ($('nc-model')) $('nc-model').focus();
@@ -1720,8 +2014,9 @@
       if (res.ok) {
         S.newCar = null;
         setState(res.state);
+        if (n.runId) linkRunToCar(n.runId, { archiveId: '', reg: n.reg, model: f.model.replace(/\s+/g, ' ').trim() });
         go('#/bil/' + encodeURIComponent(res.key));
-        toast('Bilen er oprettet. Bilarkivet henter den, når pc\'en er åben.');
+        toast(n.runId ? 'Bilen er oprettet, og opgaven er koblet til den. Bilarkivet henter bilen, når pc\'en er åben.' : 'Bilen er oprettet. Bilarkivet henter den, når pc\'en er åben.');
         return;
       }
       if (res.duplicate) {
@@ -1753,10 +2048,13 @@
     }
     var open = run.status === STATUS.OPEN;
     var p = run.progress;
-    var html = '<a class="back" href="#/bil/' + encodeURIComponent(keyOf(run)) + '">' + ICONS.back + esc(plateText(run.car.reg) || 'Bilen') + (run.car.model ? ' · ' + esc(run.car.model) : '') + '</a>';
-    html += '<div class="car-head">' + plate(run.car.reg, true) + '<h1 id="runTitle">' + esc(run.procedureName) + '</h1></div>';
-    html += '<div class="run-meta">' + statusPill(run.status) + '<span>Startet ' + esc(fmtWhen(run.startedAt)) + ' af ' + esc(personName(run.startedBy)) + '</span>' +
+    var html = run.task
+      ? '<a class="back" href="#/opgaver">' + ICONS.back + 'Opgaver</a>'
+      : '<a class="back" href="#/bil/' + encodeURIComponent(keyOf(run)) + '">' + ICONS.back + esc(plateText(run.car.reg) || 'Bilen') + (run.car.model ? ' · ' + esc(run.car.model) : '') + '</a>';
+    html += '<div class="car-head">' + (run.task ? carPlate(run.car, true) : plate(run.car.reg, true)) + '<h1 id="runTitle">' + esc(run.procedureName) + '</h1></div>';
+    html += '<div class="run-meta">' + statusPill(run.status) + (run.task ? '<span>Opgave</span>' : '') + '<span>Startet ' + esc(fmtWhen(run.startedAt)) + ' af ' + esc(personName(run.startedBy)) + '</span>' +
       (run.car.model ? '<span>' + esc(run.car.model) + '</span>' : '') + '</div>';
+    if (run.task) html += runCarHtml(run, open);
 
     if (run.status === STATUS.DONE) {
       html += '<div class="banner" style="margin-top:16px"><span><b>Gennemført</b> ' + esc(fmtWhen(run.finishedAt)) + ' af ' + esc(personName(run.finishedBy)) +
@@ -1785,6 +2083,76 @@
       html += '<div class="card note-card"><span class="label">Note</span><p>' + esc(run.note) + '</p></div>';
     }
     return html;
+  }
+
+  /** Bilen på en opgave: vis, tilføj, skift eller fjern. På en afsluttet indbytning: "Opret indbytningsbilen". */
+  function runCarHtml(run, open) {
+    var known = hasCar(run.car) ? (run.car.archiveId ? findCar('a:' + run.car.archiveId) : findCar(keyOf(run))) : null;
+    var html = '<div class="card run-car"><span class="label" id="runCarLabel">Bil</span><span class="run-car-text">' +
+      (hasCar(run.car) ? esc(carLabel(run.car)) : 'Ingen bil') + '</span>' +
+      (known && !offersCar(run) ? '<a class="link-btn" href="#/bil/' + encodeURIComponent(known.key) + '">Åbn bilen</a>' : '');
+    if (open) {
+      html += tasksServer()
+        ? '<button class="secondary" type="button" data-action="run-car" data-key="runCar" aria-describedby="runCarLabel">' + (hasCar(run.car) ? 'Skift bil' : 'Tilføj bil') + '</button>'
+        : '<span class="muted" style="font-size:13px">Skift bil: ' + NEEDS_NEW_SERVER + '</span>';
+    }
+    html += '</div>';
+    if (offersCar(run)) {
+      var wish = runWishPlates(run);
+      var reg = wish ? '' : runPlate(run);
+      html += '<div class="banner offer" role="status"><span><b>Opret indbytningsbilen.</b> ' + (wish ? 'Bilen får nye plader og findes ikke i Bilarkivet endnu.' : reg ? esc(plateText(reg)) + ' findes ikke i Bilarkivet endnu.' : 'Bilen findes ikke i Bilarkivet endnu.') +
+        ' Opret den, så den kommer i Bilarkivet, og opgaven kobles til den.</span><button class="primary" type="button" data-action="offer-car" data-key="offerCar">Opret indbytningsbilen</button></div>';
+    }
+    return html;
+  }
+
+  /** Åbner Ny bil med reg.nr. fra opgaven. Når bilen er oprettet (eller findes), kobles opgaven til den. */
+  function openNewCarForRun(run) {
+    if (!newServer()) { toast(NEEDS_NEW_SERVER + '.', true); return; }
+    S.newCar = newCarState();
+    // Beholder sælger sine ønskeplader, får bilen nye plader: så udfyldes den gamle plade ikke.
+    S.newCar.wishPlates = runWishPlates(run);
+    S.newCar.reg = S.newCar.wishPlates ? '' : runPlate(run);
+    S.newCar.runId = run.id;
+    S.newCar.runModel = run.car.model || '';
+    S.newCar.runKm = runKm(run);
+    go('#/ny-bil');
+  }
+
+  /** Km-standen fra opgaven (et tal-punkt, der hedder noget med km), som tekst til Ny bil – den er målt nu, ved indbytningen. */
+  function runKm(run) {
+    // Først et punkt, der hedder km-stand/kilometerstand. Kun hvis der ikke er et, bruges et andet tal-punkt med "km".
+    var found = { exact: '', loose: '' };
+    run.sections.forEach(function (s) {
+      if (run.skipped[s.id]) return;
+      s.items.forEach(function (it) {
+        var a = run.answers[it.id];
+        if (it.type !== 'number' || !isAnswered(it, a) || !(a.value >= 0)) return;
+        var value = formatNumberDa(Math.round(a.value));
+        if (!found.exact && /km-?\s?stand|kilometerstand/i.test(it.text)) found.exact = value;
+        else if (!found.loose && /\bkm\b|kilometer/i.test(it.text)) found.loose = value;
+      });
+    });
+    return found.exact || found.loose;
+  }
+
+  /** Har opgaven svaret, at sælger beholder sine ønskeplader? (et valg-punkt om nummerplader, hvor svaret nævner ønskeplader) */
+  function runWishPlates(run) {
+    return run.sections.some(function (s) {
+      return !run.skipped[s.id] && s.items.some(function (it) {
+        var a = run.answers[it.id];
+        return it.type === 'choice' && /nummerplade/i.test(it.text) && isAnswered(it, a) && /ønskeplade|ønskenummerplade/i.test(String(a.value));
+      });
+    });
+  }
+
+  /** Kobler opgaven til bilen (via køen) og viser det med det samme i listerne. */
+  function linkRunToCar(runId, car) {
+    var arg = car.archiveId ? { archiveId: car.archiveId } : { manual: { reg: car.reg, model: car.model } };
+    var nextCar = { archiveId: car.archiveId || '', reg: car.reg || '', model: car.model || '' };
+    S.state.runs.forEach(function (r) { if (r.id === runId) { r.car = nextCar; r.key = carKey(nextCar); } });
+    if (S.run && S.run.id === runId) { S.run.car = nextCar; S.run.key = carKey(nextCar); }
+    save('setChecklistCar', Object.assign({ runId: runId, link: true }, arg));
   }
 
   function progressLabel(p) {
@@ -1973,7 +2341,7 @@
       updateSummary(res.run);
       if (res.skipped) {
         // Punktet er ændret senere (fx på en anden enhed): serveren beholdt den nyere ændring.
-        var what = op.name === 'saveChecklistNote' ? 'Noten' : op.name === 'skipChecklistSection' ? 'Afsnittet' : 'Punktet';
+        var what = op.name === 'saveChecklistNote' ? 'Noten' : op.name === 'skipChecklistSection' ? 'Afsnittet' : op.name === 'setChecklistCar' ? 'Bilen' : 'Punktet';
         toast(what + ' blev ændret senere' + (res.by ? ' af ' + personName(res.by) : '') + ' – din ændring blev ikke gemt.', true);
         if (S.run && S.run.id === runId) {
           if (S.pending) mergeStale(op, res.run);   // andre ændringer venter: kun det sprungne ændres, resten står som det er
@@ -2084,6 +2452,7 @@
   function mergeStale(op, serverRun) {
     var a = op.arg, key;
     if (op.name === 'saveChecklistNote') { key = 'note'; S.run.note = serverRun.note; }
+    else if (op.name === 'setChecklistCar') { key = 'car'; S.run.car = serverRun.car; S.run.key = serverRun.key; }
     else if (op.name === 'skipChecklistSection') {
       key = 'sec:' + a.sectionId;
       if (serverRun.skipped[a.sectionId]) S.run.skipped[a.sectionId] = serverRun.skipped[a.sectionId]; else delete S.run.skipped[a.sectionId];
@@ -2138,7 +2507,7 @@
   function runSignature(run) {
     var values = {};
     Object.keys(run.answers).sort().forEach(function (k) { values[k] = run.answers[k].value; });
-    return JSON.stringify([values, Object.keys(run.skipped).sort(), run.status, run.note]);
+    return JSON.stringify([values, Object.keys(run.skipped).sort(), run.status, run.note, run.car]);
   }
 
   function localAnswer(itemId, value) {
@@ -2182,6 +2551,14 @@
         render();
         window.scrollTo(0, 0);
         toast('Tjeklisten er gennemført og gemt.');
+        if (offersCar(res.run)) {
+          var wish = runWishPlates(res.run);
+          var reg = wish ? '' : runPlate(res.run);
+          confirmBox('Opret indbytningsbilen?', (wish ? 'Bilen får nye plader og findes ikke i Bilarkivet endnu. ' : reg ? plateText(reg) + ' findes ikke i Bilarkivet endnu. ' : '') +
+            'Opret bilen nu, så kommer den i Bilarkivet, og opgaven kobles til den. Du kan også gøre det senere fra opgaven.', 'Opret bilen', false).then(function (yes) {
+            if (yes && S.run && S.run.id === res.run.id) openNewCarForRun(S.run);
+          });
+        }
       }, function (err) {
         if (err.code === 'AUTH') return;
         toast(err.message, true);
@@ -2205,8 +2582,8 @@
       }).then(function (res) {
         setState(res.state);
         S.run = res.run;
-        go('#/bil/' + encodeURIComponent(keyOf(res.run)));
-        toast('Tjeklisten er annulleret.');
+        go(res.run.task ? '#/opgaver' : '#/bil/' + encodeURIComponent(keyOf(res.run)));
+        toast(res.run.task ? 'Opgaven er annulleret.' : 'Tjeklisten er annulleret.');
       }, function (err) { if (err.code !== 'AUTH') toast(err.message, true); });
     });
   }
@@ -2289,18 +2666,25 @@
   function viewProcedures() {
     var active = S.state.procedures.filter(function (p) { return p.status !== 'Arkiveret'; });
     var archived = S.state.procedures.filter(function (p) { return p.status === 'Arkiveret'; });
-    function card(p) {
+    var tasks = tasksServer();
+    function card(p, i) {
       var n = p.sections.reduce(function (s, x) { return s + x.items.length; }, 0);
-      return '<li><div class="row"><span class="pill">' + esc(p.repeat === 'once' ? 'Én gang pr. bil' : 'Flere gange pr. bil') + '</span>' +
+      var usage = tasks && scopeOf(p) === 'tasks' ? 'Opgaver' : (p.repeat === 'once' ? 'Én gang pr. bil' : 'Flere gange pr. bil') + (tasks && scopeOf(p) === 'both' ? ' · Opgaver' : '');
+      var order = tasks && p.status !== 'Arkiveret'
+        ? '<span class="ed-order"><button class="icon-btn" type="button" data-action="proc-move" data-dir="up" data-id="' + esc(p.id) + '" data-key="pu-' + esc(p.id) + '" aria-label="Flyt ' + esc(p.name) + ' op"' + (i === 0 ? ' disabled' : '') + '>' + ICONS.up + '</button>' +
+          '<button class="icon-btn" type="button" data-action="proc-move" data-dir="down" data-id="' + esc(p.id) + '" data-key="pd-' + esc(p.id) + '" aria-label="Flyt ' + esc(p.name) + ' ned"' + (i === active.length - 1 ? ' disabled' : '') + '>' + ICONS.down + '</button></span>'
+        : '';
+      return '<li><div class="row proc-row">' +
         '<span class="row-main"><span class="row-title">' + esc(p.name) + '</span><span class="row-sub">' +
         esc(p.sections.length + ' afsnit · ' + n + (n === 1 ? ' punkt' : ' punkter') + ' · version ' + p.version + (p.updatedAt ? ' · rettet ' + fmtDate(p.updatedAt) + ' af ' + personName(p.updatedBy) : '')) +
-        '</span></span><span class="row-side">' +
+        '</span><span class="proc-usage"><span class="pill">' + esc(usage) + '</span></span></span><span class="row-side">' + order +
         (p.status === 'Arkiveret'
           ? '<button class="link-btn" type="button" data-action="archive" data-id="' + esc(p.id) + '" data-archived="0">Gendan</button>'
           : '<a class="secondary" style="text-decoration:none" href="#/procedure/' + encodeURIComponent(p.id) + '">Redigér</a>') +
         '</span></div></li>';
     }
-    var html = '<div class="head"><div><h1>Procedurer</h1><p class="muted">Faste tjeklister, der bruges på bilerne. Ret dem her – uden programmering.</p></div>' +
+    var html = '<div class="head"><div><h1>Procedurer</h1><p class="muted">Faste tjeklister til bilerne og fanen Opgaver. Ret dem her – uden programmering.' +
+      (tasks ? ' Pilene ændrer rækkefølgen.' : '') + '</p></div>' +
       '<a class="primary" style="text-decoration:none" href="#/procedure/ny">Ny procedure</a></div>' + problemsBanner();
     html += active.length ? '<div class="card"><ul class="list">' + active.map(card).join('') + '</ul></div>'
       : '<div class="card"><p class="empty">Der er ingen aktive procedurer.</p></div>';
@@ -2319,6 +2703,7 @@
   function editorFromProcedure(p) {
     return {
       id: p.id, version: p.version, status: p.status, name: p.name, description: p.description, repeat: p.repeat,
+      scope: scopeOf(p), offerCar: p.offerCar === true,
       sections: p.sections.map(function (s) {
         return {
           key: newKey(), id: s.id, title: s.title, optional: s.optional, skipLabel: s.skipLabel || 'Ikke relevant',
@@ -2332,8 +2717,9 @@
 
   function viewEditor(arg) {
     if (S.editorFor !== arg || !S.editor) {
-      if (arg === 'ny') {
-        S.editor = { id: '', version: 0, name: '', description: '', repeat: 'once', sections: [blankSection()] };
+      if (arg === 'ny' || arg === 'ny-opgave') {
+        var forTasks = arg === 'ny-opgave' && tasksServer();
+        S.editor = { id: '', version: 0, name: '', description: '', repeat: forTasks ? 'many' : 'once', scope: forTasks ? 'tasks' : 'cars', offerCar: false, sections: [blankSection()] };
       } else {
         var p = S.state.procedures.filter(function (x) { return x.id === arg; })[0];
         if (!p) return '<a class="back" href="#/procedurer">' + ICONS.back + 'Procedurer</a><h1>Proceduren blev ikke fundet</h1>';
@@ -2349,14 +2735,28 @@
 
     var html = '<a class="back" href="#/procedurer">' + ICONS.back + 'Procedurer</a>' +
       '<div class="head"><div><h1>' + (e.id ? 'Redigér procedure' : 'Ny procedure') + '</h1>' +
-      (e.id ? '<p class="muted">Ændringer gælder nye tjeklister. Tjeklister, der allerede er i gang, beholder punkterne fra da de blev startet.</p>' : '') + '</div></div>';
+      (e.id ? '<p class="muted">Ændringer gælder nye tjeklister. Tjeklister, der allerede er i gang, beholder punkterne fra da de blev startet.' +
+        (tasksServer() ? ' Rækkefølgen ændres med pilene på listen under Procedurer.' : '') + '</p>' : '') + '</div></div>';
 
     html += '<div class="card ed-top"><div class="field"><label for="edName">Navn</label><input id="edName" type="text" data-key="edName" data-bind="name" data-field="name" maxlength="80" value="' + esc(e.name) + '"' + inv('name') + ' placeholder="fx Klargøring af bil"></div>' +
       '<div class="field"><label for="edDesc">Beskrivelse <span style="font-weight:400">(valgfri)</span></label><input id="edDesc" type="text" data-key="edDesc" data-bind="description" data-field="description" maxlength="300" value="' + esc(e.description) + '"' + inv('description') + '></div>' +
-      '<span class="label" id="repLabel">Bruges</span><div class="seg" role="group" aria-labelledby="repLabel" data-field="repeat">' +
-      '<button type="button" data-action="repeat" data-value="many" data-key="rep-many" aria-pressed="' + (e.repeat === 'many') + '">Flere gange pr. bil</button>' +
-      '<button type="button" data-action="repeat" data-value="once" data-key="rep-once" aria-pressed="' + (e.repeat === 'once') + '">Én gang pr. bil</button></div>' +
-      '<p class="muted" style="font-size:13.5px;margin:8px 0 0">' + (e.repeat === 'many' ? 'Fx prøvekørsel: der kan laves en ny tjekliste hver gang.' : 'Fx klargøring: bilen viser, om den er gennemført.') + '</p></div>';
+      (tasksServer()
+        ? '<span class="label" id="scopeLabel">Vises under</span><div class="seg seg-wrap" role="group" aria-labelledby="scopeLabel" data-field="scope">' +
+          ['cars', 'tasks', 'both'].map(function (v) {
+            return '<button type="button" data-action="scope" data-value="' + v + '" data-key="scope-' + v + '" aria-pressed="' + (e.scope === v) + '">' + (v === 'both' ? 'Begge' : SCOPE_LABELS[v]) + '</button>';
+          }).join('') + '</div>' +
+          '<p class="muted" style="font-size:13.5px;margin:8px 0 14px">' + (e.scope === 'tasks' ? 'Vises på fanen Opgaver. Den kan startes med eller uden bil.'
+            : e.scope === 'both' ? 'Vises både på bilernes side og på fanen Opgaver.' : 'Vises på bilernes side, som Prøvekørsel.') + '</p>'
+        : '') +
+      (e.scope !== 'tasks'
+        ? '<span class="label" id="repLabel">Bruges</span><div class="seg" role="group" aria-labelledby="repLabel" data-field="repeat">' +
+          '<button type="button" data-action="repeat" data-value="many" data-key="rep-many" aria-pressed="' + (e.repeat === 'many') + '">Flere gange pr. bil</button>' +
+          '<button type="button" data-action="repeat" data-value="once" data-key="rep-once" aria-pressed="' + (e.repeat === 'once') + '">Én gang pr. bil</button></div>' +
+          '<p class="muted" style="font-size:13.5px;margin:8px 0 0">' + (e.repeat === 'many' ? 'Fx prøvekørsel: der kan laves en ny tjekliste hver gang.' : 'Fx klargøring: bilen viser, om den er gennemført.') + '</p>'
+        : '') +
+      (tasksServer() && e.scope !== 'cars'
+        ? '<label class="tick" style="margin-top:14px"><input type="checkbox" data-bind="offerCar" data-key="edOfferCar"' + (e.offerCar ? ' checked' : '') + '> Tilbyd at oprette bilen i Bilarkivet, når opgaven er afsluttet (fx indbytning)</label>'
+        : '') + '</div>';
 
     e.sections.forEach(function (s, si) {
       var sp = 's' + si;
@@ -2416,7 +2816,8 @@
   function editorPayload() {
     var e = S.editor;
     return {
-      id: e.id, version: e.version, name: e.name, description: e.description, repeat: e.repeat,
+      id: e.id, version: e.version, name: e.name, description: e.description, repeat: e.scope === 'tasks' ? 'many' : e.repeat,
+      scope: e.scope || 'cars', offerCar: e.offerCar === true && e.scope !== 'cars',
       sections: e.sections.map(function (s) {
         return {
           id: s.id, title: s.title, optional: s.optional, skipLabel: s.skipLabel,
@@ -2436,6 +2837,7 @@
     var focusKey = null;
     switch (action) {
       case 'repeat': e.repeat = el.getAttribute('data-value'); break;
+      case 'scope': e.scope = el.getAttribute('data-value'); if (e.scope === 'tasks') e.repeat = 'many'; break;
       case 'sec-add': var ns = blankSection(); secs.push(ns); focusKey = 't-' + ns.key; break;
       case 'sec-del':
         var sec = secs[si];
@@ -2493,14 +2895,38 @@
       }
       S.dirty = false;
       setState(res.state);
-      toast(res.changed === false ? 'Der var ingen ændringer.' : 'Proceduren er gemt.');
-      go('#/procedurer');
+      var fromTasks = S.editorFor === 'ny-opgave';
+      var saved = res.state.procedures.filter(function (p) { return p.id === res.id; })[0];
+      toast(res.changed === false ? 'Der var ingen ændringer.' : saved && tasksServer() && scopeOf(saved) !== 'cars' ? 'Proceduren er gemt og står under Opgaver.' : 'Proceduren er gemt.');
+      go(fromTasks ? '#/opgaver' : '#/procedurer');
     }, function (err) {
       if (err.code === 'AUTH') return;
       btn.disabled = false;
       btn.textContent = 'Gem procedure';
       S.editorError = { error: err.message, field: '' };
       var box = $('edError'); if (box) box.textContent = err.message;
+    });
+  }
+
+  /** Flytter en procedure op eller ned. Rækkefølgen gælder Opgaver, bilens side og listen her. Giver ikke en ny version. */
+  var moving = false;
+  function moveProc(id, dir) {
+    if (moving) return;
+    moving = true;
+    view.querySelectorAll('[data-action="proc-move"]').forEach(function (b) { b.disabled = true; });
+    call('moveProcedure', { id: id, dir: dir }).then(function (state) {
+      moving = false;
+      setState(state);
+      render(true);
+      // Fokus følger proceduren, så man kan trykke flere gange i træk (også med tastaturet).
+      var b = view.querySelector('[data-key="' + (dir === 'up' ? 'pu-' : 'pd-') + id + '"]');
+      if (b && b.disabled) b = view.querySelector('[data-key="' + (dir === 'up' ? 'pd-' : 'pu-') + id + '"]');
+      if (b) b.focus();
+    }, function (err) {
+      moving = false;
+      if (err.code === 'AUTH') return;
+      render(true);
+      toast(err.message, true);
     });
   }
 
@@ -2763,7 +3189,16 @@
         return;
       case 'nc-open':
         var existing = S.newCar && S.newCar.existing;
-        if (existing) { S.newCar = null; go('#/bil/' + encodeURIComponent(existing.key)); loadState(true); }
+        if (existing) {
+          var linkRun = S.newCar.runId;
+          S.newCar = null;
+          if (linkRun) {
+            linkRunToCar(linkRun, existing.kind === 'archive' ? { archiveId: existing.id, reg: existing.reg, model: existing.model } : { archiveId: '', reg: existing.reg, model: existing.model });
+            toast('Opgaven er koblet til bilen.');
+          }
+          go('#/bil/' + encodeURIComponent(existing.key));
+          loadState(true);
+        }
         return;
       case 'nc-eq-del':
         if (S.newCar) { S.newCar.equip.splice(+el.getAttribute('data-i'), 1); render(true); }
@@ -2807,6 +3242,20 @@
       case 'more-history': S.hist.limit += 200; $('histList').innerHTML = historyList(); return;
       case 'archive': setArchived(el.getAttribute('data-id'), el.getAttribute('data-archived') === '1'); return;
       case 'ed-save': saveEditor(el); return;
+      case 'proc-move': moveProc(el.getAttribute('data-id'), el.getAttribute('data-dir')); return;
+      case 'task-pick-car':
+        if (!S.taskStart) return;
+        var startFor = S.taskStart;
+        pickCar({ allowNone: true }).then(function (choice) {
+          if (!choice || S.taskStart !== startFor) return;
+          startFor.car = choice.none ? null : choice;
+          render(true);
+          var again = view.querySelector('[data-key="taskStart"]'); if (again) again.focus();
+        });
+        return;
+      case 'task-start': startTask(); return;
+      case 'run-car': changeRunCar(); return;
+      case 'offer-car': if (S.run) openNewCarForRun(S.run); return;
       case 'goto-item':
         var target = $('it-' + el.getAttribute('data-item'));
         if (target) {

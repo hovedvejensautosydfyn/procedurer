@@ -5,7 +5,7 @@
  * Kald til serveren (anden adresse, POST) rører den aldrig: svar fra API'et gemmes ALDRIG.
  * Hæv CACHE-nummeret, når ikoner eller manifestet ændres.
  */
-var CACHE = 'procedurer-app-v4';
+var CACHE = 'procedurer-app-v5';
 var SHELL = ['index.html', 'config.js', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/logo-hvid.png'];
 var NETWORK_WAIT_MS = 4000; // på dårligt net vises den gemte udgave, hvis nettet er for langsomt
 
