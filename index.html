@@ -147,6 +147,20 @@
   .pill.open { background: var(--warn-soft); color: var(--warn-ink); }
   .pill.done { background: var(--ok-soft); color: var(--ok); }
   .pill.cancel { text-decoration: line-through; }
+  .pill.notready { background: var(--danger-soft); color: var(--danger); font-weight: 600; display: inline-block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  .flag-box { margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--danger-soft); border: 1px solid var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+  .flag-box.resolved { background: var(--ok-soft); border-color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+  .flag-box textarea { margin-top: 4px; }
+  .flag-box .secondary { margin-top: 8px; }
+  .flag-box .link-btn { display: block; margin-top: 4px; }
+  .flag-tag { display: block; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--danger); margin-bottom: 4px; }
+  .flag-box.resolved .flag-tag { color: var(--ok); }
+  .flag-note { margin: 0; font-weight: 500; }
+  .notready-card { border-color: var(--danger); background: var(--danger-soft); margin-top: 16px; }
+  .notready-card h2 { color: var(--danger); margin: 0 0 6px; font-size: 17px; }
+  .notready-card ul { margin: 0; padding-left: 20px; }
+  .notready-card li { margin: 3px 0; font-weight: 500; }
+  .notready-card li.notready-from { list-style: none; margin: 0 0 8px -20px; font-weight: 400; font-size: 13.5px; }
 
   input[type="text"], input[type="search"], input:not([type]), select, textarea {
     width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line-strong);
@@ -360,6 +374,35 @@
   .info-row.fixed .info-text { text-decoration: line-through; color: var(--muted); }
   .info-add { display: flex; gap: 8px; align-items: center; padding: 10px 8px 8px; border-top: 1px solid var(--line); flex-wrap: wrap; }
   .info-add input[type="text"] { flex: 1; min-width: 160px; }
+  /* Bilens mangler: pris, hvem og del bestilt under hver mangel */
+  .df-widget .info-row:first-child { border-top: 0; }
+  .df-row { border-bottom: 0; }
+  .df-extra { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 0 8px 10px 44px; }
+  .df-extra.done { color: var(--muted); font-size: 13px; padding-bottom: 8px; }
+  .df-extra select { width: auto; min-width: 110px; }
+  .df-price { width: 96px; }
+  .info-add input.df-price, .df-extra input.df-price { flex: 0 0 96px; min-width: 0; }
+  .df-add select { width: auto; flex: 0 0 auto; }
+  .df-kr { color: var(--muted); font-size: 13px; margin-left: -4px; }
+  .opt.df-part { padding: 6px 12px; min-height: 40px; font-size: 14px; }
+  .df-sum { margin: 0; padding: 8px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  .df-sum b { color: var(--ink); }
+  .df-ro, .multi-ro { list-style: none; margin: 6px 0 0; padding: 0; }
+  .df-ro li, .multi-ro li { padding: 3px 0; font-weight: 500; }
+  .df-ro li.fixed { color: var(--muted); }
+  .df-ro .muted, .multi-ro .muted { font-weight: 400; }
+  .multi-ro li.m-mangler { color: var(--danger); }
+  .item .df-widget { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  /* Valg, flere svar: Godkendt / Mangler pr. mulighed */
+  .multi { display: grid; gap: 6px; }
+  .multi-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--line); }
+  .multi-row:first-child { border-top: 0; }
+  .multi-label { font-weight: 500; min-width: 0; flex: 1 1 140px; }
+  .multi-btns { display: flex; gap: 6px; }
+  .multi-btns .opt { padding: 6px 12px; min-height: 40px; font-size: 14px; }
+  .opt.mk-ok[aria-pressed="true"] { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok); }
+  .opt.mk-mangler[aria-pressed="true"] { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+  .car-filter { margin-left: auto; }
   .photo-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; text-align: center; }
   .photo-btn input[type="file"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; font-size: 0; }
   .photo-btn:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -566,7 +609,8 @@
 
   var TZ = 'Europe/Copenhagen';
   var STATUS = { OPEN: 'I gang', DONE: 'Gennemført', CANCELLED: 'Annulleret' };
-  var TYPE_LABELS = { check: 'Afkrydsning', yesno: 'Ja/nej', choice: 'Valg', number: 'Tal', text: 'Tekst' };
+  var TYPE_LABELS = { check: 'Afkrydsning', yesno: 'Ja/nej', choice: 'Valg', multi: 'Valg, flere svar', number: 'Tal', text: 'Tekst', defects: 'Mangler på bilen' };
+  var WHO_LABELS = { selv: 'Selv', 'værksted': 'Værksted' };
   var CHECK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var ICONS = {
     up: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
@@ -635,9 +679,9 @@
   var OPS_STORE = 'procedurer.ops';
   var SKEW_STORE = 'procedurer.skew';       // serverens ur minus enhedens (ms)
   var LASTAT_STORE = 'procedurer.lastAt';   // tidspunktet for den seneste ændring, så tidspunkter kun går fremad
-  var QUEUED = { answerChecklistItem: true, skipChecklistSection: true, saveChecklistNote: true, saveCarInfo: true, setChecklistCar: true }; // kan sendes igen uden skade
+  var QUEUED = { answerChecklistItem: true, skipChecklistSection: true, saveChecklistNote: true, saveCarInfo: true, setChecklistCar: true, saveChecklistFlagNote: true, resolveChecklistFlag: true }; // kan sendes igen uden skade
   // Funktioner, som en ældre serverkode ikke kender. Svarer den "Ukendt handling.", skjules den del af appen.
-  var NEW_FUNCTIONS = { lookupPlate: 'cars', createCar: 'cars', getCarInfo: 'cars', saveCarInfo: 'cars', uploadPhoto: 'cars', setChecklistCar: 'tasks', moveProcedure: 'tasks' };
+  var NEW_FUNCTIONS = { lookupPlate: 'cars', createCar: 'cars', getCarInfo: 'cars', saveCarInfo: 'cars', uploadPhoto: 'cars', setChecklistCar: 'tasks', moveProcedure: 'tasks', saveChecklistFlagNote: 'flags', resolveChecklistFlag: 'flags' };
   var NEEDS_NEW_SERVER = 'Kræver ny serverversion';
   var PHOTO_TIMEOUT_MS = window.PROCEDURER_PHOTO_TIMEOUT_MS || 120000;  // et billede er flere MB og kan tage tid på dårligt net
   var PHOTO_MAX_SIDE = 2560;                                            // længste side i pixel, når et billede skaleres
@@ -706,7 +750,9 @@
 
       // Den gamle serverkode kender ikke de nye funktioner: skjul dem i stedet for at vise fejl.
       if (NEW_FUNCTIONS[name] && err.code === 'INPUT' && err.message === 'Ukendt handling.') {
-        if (NEW_FUNCTIONS[name] === 'tasks') { S.noTasks = true; err.message = NEEDS_NEW_SERVER + '.'; } else S.legacyServer = true;
+        if (NEW_FUNCTIONS[name] === 'tasks') { S.noTasks = true; err.message = NEEDS_NEW_SERVER + '.'; }
+        else if (NEW_FUNCTIONS[name] === 'flags') { S.noFlags = true; err.message = NEEDS_NEW_SERVER + '.'; }
+        else S.legacyServer = true;
         if (S.state) render();
       }
       throw err;
@@ -795,19 +841,94 @@
 
   function isAnswered(item, a) {
     if (!a) return false;
-    return item.type === 'check' ? a.value === true : a.value !== null && a.value !== '';
+    if (item.type === 'check') return a.value === true;
+    if (item.type === 'multi') return !!a.value && typeof a.value === 'object' && Object.keys(a.value).length > 0;
+    return a.value !== null && a.value !== '';
   }
+  /** Tæller som udfyldt i afsnittets tæller: et punkt "Mangler på bilen" er en liste, ikke et svar. */
+  function countsDone(item, a) { return item.type === 'defects' || isAnswered(item, a); }
+
+  // ---------- Mangler på bilen og valg med flere svar (samme regler som i Logic.gs) ----------
+  /** Kan serveren de nye punkttyper (Valg, flere svar og Mangler på bilen) og pris, hvem og del bestilt på manglerne? */
+  function listsServer() { return !!(S.state && S.state.features && S.state.features.lists); }
+  function liveDefects(list) { return (list || []).filter(function (d) { return d && !d.deleted; }); }
+  function defectSummary(list) {
+    var live = liveDefects(list), price = 0;
+    live.forEach(function (d) { if (typeof d.price === 'number') price += d.price; });
+    return { open: live.filter(function (d) { return !d.fixed; }).length, total: live.length, price: Math.round(price * 100) / 100 };
+  }
+  function fmtKr(n) { return formatNumberDa(n) + ' kr.'; }
+  function multiText(item, value) {
+    var ok = [], bad = [];
+    (item.options || []).forEach(function (o) { if (value && value[o] === 'ok') ok.push(o); else if (value && value[o] === 'mangler') bad.push(o); });
+    return [ok.length ? 'Godkendt: ' + ok.join(', ') : '', bad.length ? 'Mangler: ' + bad.join(', ') : ''].filter(Boolean).join(' · ');
+  }
+  function multiDefectId(runId, itemId, i) {
+    return ('mx' + String(runId).replace(/[^A-Za-z0-9]/g, '').slice(-14) + String(itemId).replace(/[^A-Za-z0-9]/g, '').slice(-14) + '_' + i).slice(0, 40);
+  }
+  /** Bilen på en tjekliste (eller null). */
+  function runCar(run) { return run && hasCar(run.car) ? findCar(keyOf(run)) : null; }
+  /** Bilens mangler, hvis de er hentet (ellers undefined: så stopper et punkt af typen defects ikke afslutningen her – serveren tjekker). */
+  function runCarDefects(run) {
+    var car = runCar(run);
+    var info = car && carRef(car) ? S.info[car.key] : null;
+    return info && !info.loading && !info.error ? info.defects : undefined;
+  }
+  /** Bilens mangler til listen: de hentede, hvis bilen er åbnet, ellers serverens tal. { open, total, price } eller null. */
+  function carDefectsSummary(car) {
+    var info = S.info[car.key];
+    if (info && !info.loading && !info.error) { var s = defectSummary(info.defects); return s.total ? s : null; }
+    return car.defects && car.defects.total ? car.defects : null;
+  }
+  // ---------- Ikke klar (samme regler som i Logic.gs) ----------
+  function isFlagged(item, a) { return !!(item.flag && a && a.value === item.flag); }
+  function flagNoteText(run, itemId) { var n = run.flagNotes && run.flagNotes[itemId]; return n && typeof n.text === 'string' ? n.text : ''; }
+  function runFlags(run) {
+    var out = [];
+    if (run.status === STATUS.CANCELLED) return out;
+    (run.sections || []).forEach(function (section) {
+      if (run.skipped && run.skipped[section.id]) return;
+      section.items.forEach(function (item) {
+        if (!isFlagged(item, run.answers && run.answers[item.id])) return;
+        out.push({ itemId: item.id, text: item.text, note: flagNoteText(run, item.id), resolved: (run.resolved && run.resolved[item.id]) || null });
+      });
+    });
+    return out;
+  }
+  function notReadyLines(run) {
+    return runFlags(run).filter(function (f) { return !f.resolved; }).map(function (f) {
+      return f.note ? f.text + ': ' + f.note.replace(/\s*\n\s*/g, ' · ') : f.text;
+    });
+  }
+  /** Kan serveren "ikke klar"? Den forrige serverkode sender ikke features.flags. */
+  function flagsServer() { return !S.noFlags && !!(S.state && S.state.features && S.state.features.flags); }
+
   /** Samme regel som runProgress i Logic.gs. */
   function progressOf(run) {
     var required = 0, done = 0, answered = 0, total = 0, missing = [];
+    var carDefects = run.status === STATUS.OPEN ? runCarDefects(run) : undefined;
+    var openDefects = carDefects ? defectSummary(carDefects).open : 0;
     run.sections.forEach(function (section) {
       if (run.skipped[section.id]) return;
       section.items.forEach(function (item) {
-        var ok = isAnswered(item, run.answers[item.id]);
+        if (item.type === 'defects') {
+          total++; answered++;
+          if (!item.required) return;
+          required++;
+          if (openDefects) missing.push({ sectionId: section.id, itemId: item.id, text: (openDefects === 1 ? '1 mangel' : openDefects + ' mangler') + ' er ikke udbedret', why: 'defects' });
+          else done++;
+          return;
+        }
+        var a = run.answers[item.id];
+        var ok = isAnswered(item, a);
         total++;
         if (ok) answered++;
         if (!item.required) return;
         required++;
+        if (ok && isFlagged(item, a) && !flagNoteText(run, item.id)) {
+          missing.push({ sectionId: section.id, itemId: item.id, text: 'Skriv, hvad der mangler: ' + item.text, why: 'flagNote' });
+          return;
+        }
         if (ok) done++; else missing.push({ sectionId: section.id, itemId: item.id, text: item.text });
       });
     });
@@ -870,7 +991,7 @@
     S.key = '';
     S.ops = []; S.pending = 0; S.sending = false; S.netDown = false; S.setupError = ''; S.retries = 0; S.resumed = 0; S.saveFailed = false;
     S.state = null; S.run = null; S.runError = ''; S.loadError = ''; S.loadingRun = null;
-    S.editor = null; S.editorFor = null; S.dirty = false; S.finishing = false; S.manualCars = {}; S.info = {}; S.newCar = null; S.uploads = {}; S.noteConflicts = {}; S.taskStart = null; S.noTasks = false; store.remove('procedurer.noteConflicts');
+    S.editor = null; S.editorFor = null; S.dirty = false; S.finishing = false; S.manualCars = {}; S.info = {}; S.newCar = null; S.uploads = {}; S.noteConflicts = {}; S.taskStart = null; S.noTasks = false; S.noFlags = false; store.remove('procedurer.noteConflicts');
     S.pairNotice = notice + (lost ? ' Ændringer, der ikke var gemt, er gået tabt.' : '');
     S.hash = '#/biler';
     history.replaceState(null, '', S.hash);
@@ -902,14 +1023,14 @@
 
   function archiveCars() {
     return (S.state.cars || []).map(function (c) {
-      return { key: 'a:' + c.id, archiveId: c.id, reg: c.reg, model: c.model, year: c.year, status: c.status, boughtDate: c.boughtDate, soldDate: c.soldDate, folder: c.folder || '', createdAt: c.createdAt || '', inArchive: true };
+      return { key: 'a:' + c.id, archiveId: c.id, reg: c.reg, model: c.model, year: c.year, status: c.status, boughtDate: c.boughtDate, soldDate: c.soldDate, folder: c.folder || '', createdAt: c.createdAt || '', inArchive: true, defects: c.defects || null };
     });
   }
 
   /** Biler oprettet fra telefonen, som Bilarkivet ikke har hentet endnu. Nøglen er den samme som for en bil skrevet ind i hånden (reg.nr.). */
   function pendingCars() {
     return (S.state.pending || []).map(function (p) {
-      return { key: 'r:' + normalizeReg(p.reg), archiveId: '', pendingId: p.id, reg: p.reg, model: p.model, year: p.year, createdAt: p.createdAt, pending: true, duplicate: !!p.duplicate, inArchive: false };
+      return { key: 'r:' + normalizeReg(p.reg), archiveId: '', pendingId: p.id, reg: p.reg, model: p.model, year: p.year, createdAt: p.createdAt, pending: true, duplicate: !!p.duplicate, inArchive: false, defects: p.defects || null };
     });
   }
 
@@ -1001,7 +1122,7 @@
       id: run.id, procedureId: run.procedureId, procedureName: run.procedureName, car: run.car, key: run.key,
       status: run.status, progress: progressText(run.progress), startedAt: run.startedAt, startedBy: run.startedBy,
       finishedAt: run.finishedAt || 0, finishedBy: run.finishedBy, note: run.note.length > 160 ? run.note.slice(0, 157) + '…' : run.note,
-      task: run.task === true
+      task: run.task === true, notReady: notReadyLines(run)
     };
   }
   function updateSummary(run) {
@@ -1162,8 +1283,45 @@
     return !!car.pending || !!(since && car.createdAt && Date.parse(car.createdAt) >= since);
   }
 
+  /**
+   * Det, der mangler på bilen: pr. procedure tæller kun den nyeste tjekliste, der ikke er annulleret (startes klargøringen
+   * igen, gælder den nye). Svarer [{ run, lines }].
+   */
+  function carNotReady(car) {
+    var seen = {}, out = [];
+    runsFor(car.key).slice().sort(function (a, b) { return (b.startedAt || 0) - (a.startedAt || 0); }).forEach(function (r) {
+      if (r.status === STATUS.CANCELLED || seen[r.procedureId]) return;
+      seen[r.procedureId] = true;
+      if (r.notReady && r.notReady.length) out.push({ run: r, lines: r.notReady });
+    });
+    return out;
+  }
+  /** Det, der gør bilen ikke klar: åbne mangler på bilens liste og ja/nej-punkter med "ikke klar". { open, lines } */
+  function notReadyOf(car) {
+    var lines = [];
+    carNotReady(car).forEach(function (x) { lines = lines.concat(x.lines); });
+    var d = carDefectsSummary(car);
+    return { open: d ? d.open : 0, lines: lines };
+  }
+  function isNotReady(car) { var n = notReadyOf(car); return n.open > 0 || n.lines.length > 0; }
+  function notReadyPill(car) {
+    var n = notReadyOf(car);
+    if (!n.open && !n.lines.length) return '';
+    var count = n.open + n.lines.length;
+    var text = n.open ? (count === 1 ? '1 mangel' : count + ' mangler') : n.lines[0] + (n.lines.length > 1 ? ' +' + (n.lines.length - 1) : '');
+    return '<span class="pill notready" title="' + esc(n.lines.join('\n')) + '">Ikke klar · ' + esc(text) + '</span>';
+  }
+  /** Dage på lager: fra købsdatoen (ellers oprettelsen). Kun biler på lager og nye biler fra telefonen. */
+  function daysOnLot(car) {
+    if (car.status === 'solgt') return null;
+    var from = car.boughtDate ? Date.parse(car.boughtDate + 'T12:00:00') : car.createdAt ? (typeof car.createdAt === 'number' ? car.createdAt : Date.parse(car.createdAt)) : NaN;
+    if (!isFinite(from)) return null;
+    return Math.max(0, Math.floor((Date.now() - from) / 86400000));
+  }
+  function daysText(n) { return n === 0 ? 'Kom i dag' : n === 1 ? '1 dag på lager' : n + ' dage på lager'; }
+
   function carStatusPills(car) {
-    return carProcedures().map(function (p) {
+    return notReadyPill(car) + carProcedures().map(function (p) {
       var runs = runsFor(car.key, p.id);
       var open = runs.filter(function (r) { return r.status === STATUS.OPEN; })[0];
       if (open) return '<span class="pill open">' + esc(p.name) + ' i gang · ' + esc(open.progress) + '</span>';
@@ -1180,8 +1338,9 @@
   }
 
   function carRow(car) {
+    var days = car.inArchive || car.pending ? daysOnLot(car) : null;
     var sub = [car.year, car.inArchive ? (car.status === 'solgt' ? 'Solgt ' + fmtIsoDate(car.soldDate) : car.boughtDate ? 'Købt ' + fmtIsoDate(car.boughtDate) : '')
-      : car.pending ? 'Oprettet ' + fmtWhen(car.createdAt) : 'Ikke i Bilarkivet']
+      : car.pending ? 'Oprettet ' + fmtWhen(car.createdAt) : 'Ikke i Bilarkivet', days === null ? '' : daysText(days)]
       .filter(Boolean).join(' · ');
     return '<li><a class="row" href="#/bil/' + encodeURIComponent(car.key) + '">' + plate(car.reg) +
       '<span class="row-main"><span class="row-title">' + esc(car.model || 'Ukendt model') + '</span>' +
@@ -1202,7 +1361,11 @@
         : '<button class="primary" type="button" data-action="new-car" disabled title="' + NEEDS_NEW_SERVER + '">Ny bil</button>') + '</div></div>' +
       (newServer() ? '' : '<p class="muted" style="margin:-6px 0 14px;font-size:13.5px">Ny bil: ' + NEEDS_NEW_SERVER + '.</p>') +
       problemsBanner() + archiveBanner() +
-      '<div class="toolbar"><input type="search" class="search" id="carSearch" data-key="carSearch" placeholder="Søg på reg.nr. eller model" aria-label="Søg i biler" value="' + esc(S.search) + '"></div>' +
+      '<div class="toolbar"><input type="search" class="search" id="carSearch" data-key="carSearch" placeholder="Søg på reg.nr. eller model" aria-label="Søg i biler" value="' + esc(S.search) + '">' +
+      '<div class="seg car-filter" role="group" aria-label="Vis biler">' +
+      [['all', 'Alle'], ['notready', 'Ikke klar']].map(function (f) {
+        return '<button type="button" data-action="car-filter" data-value="' + f[0] + '" data-key="cf-' + f[0] + '" aria-pressed="' + ((S.carFilter || 'all') === f[0]) + '">' + f[1] + '</button>';
+      }).join('') + '</div></div>' +
       '<div id="carLists">' + carLists() + '</div>';
   }
 
@@ -1212,13 +1375,23 @@
     var others = otherCars(archive);
     // Opgaver, der er i gang, står under Opgaver (og på bilens side, hvis de har en bil).
     var open = S.state.runs.filter(function (r) { return r.status === STATUS.OPEN && !r.task; });
-    var stock = archive.filter(function (c) { return c.status !== 'solgt' && matches(c, q); });
-    var sold = archive.filter(function (c) { return c.status === 'solgt' && matches(c, q); });
-    var waiting = others.filter(function (c) { return c.pending && matches(c, q); });
-    var rest = others.filter(function (c) { return !c.pending && matches(c, q); });
+    // "Ikke klar": kun biler, der ikke er solgt, med mangler eller "ikke klar"-punkter – længst på lager først (en arbejdsliste).
+    var onlyNotReady = S.carFilter === 'notready';
+    var keep = function (c) { return matches(c, q) && (!onlyNotReady || isNotReady(c)); };
+    var stock = archive.filter(function (c) { return c.status !== 'solgt' && keep(c); });
+    var sold = onlyNotReady ? [] : archive.filter(function (c) { return c.status === 'solgt' && matches(c, q); });
+    var waiting = others.filter(function (c) { return c.pending && keep(c); });
+    var rest = others.filter(function (c) { return !c.pending && keep(c); });
+    if (onlyNotReady) {
+      var byDays = function (a, b) { return (daysOnLot(b) || 0) - (daysOnLot(a) || 0); };
+      stock.sort(byDays); waiting.sort(byDays);
+      if (!stock.length && !waiting.length && !rest.length) {
+        return '<div class="card"><p class="empty">' + (q ? 'Ingen biler, der ikke er klar, passer til søgningen.' : 'Alle biler er klar. Der er ingen åbne mangler.') + '</p></div>';
+      }
+    }
     var html = '';
 
-    if (open.length && !q) {
+    if (open.length && !q && !onlyNotReady) {
       html += '<h3>I gang</h3><div class="card"><ul class="list">' + open.map(function (r) {
         return '<li><a class="row" href="#/tjekliste/' + encodeURIComponent(r.id) + '">' + carPlate(r.car) +
           '<span class="row-main"><span class="row-title">' + runTitle(r) + '</span>' +
@@ -1432,6 +1605,17 @@
       '<div class="car-head">' + plate(car.reg, true) + '<h1>' + esc(car.model || 'Ukendt model') + '</h1></div>' +
       '<p class="muted" style="margin:6px 0 0">' + esc([car.year, status].filter(Boolean).join(' · ')) + '</p>' + archiveBanner();
 
+    var missing = carNotReady(car);
+    var openDefects = notReadyOf(car).open;
+    if (missing.length || openDefects) {
+      html += '<div class="card notready-card" role="status"><h2>Bilen er ikke klar</h2><ul>' +
+        (openDefects ? '<li><button class="link-btn" type="button" data-action="goto-defects">' + (openDefects === 1 ? '1 mangel' : openDefects + ' mangler') + ' er ikke udbedret – se Fejl og mangler</button></li>' : '') + missing.map(function (x) {
+        return x.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') +
+          '<li class="notready-from"><a href="#/tjekliste/' + encodeURIComponent(x.run.id) + '">' + esc(x.run.procedureName) + ' · ' +
+          (x.run.status === STATUS.OPEN ? 'i gang' : 'gennemført ' + esc(fmtWhen(x.run.finishedAt))) + '</a></li>';
+      }).join('') + '</ul><p class="muted" style="font-size:13.5px;margin:8px 0 0">Når det er lavet: sæt flueben ved manglen' + (missing.length ? ', eller åbn tjeklisten og tryk <b>Markér som udbedret</b>' : '') + '.</p></div>';
+    }
+
     var procs = carProcedures();
     html += '<div class="proc-grid">' + (procs.length ? procs.map(function (p) { return procCard(car, p); }).join('')
       : '<div class="card"><p class="empty">Der er ingen procedurer endnu. Opret en under <a href="#/procedurer">Procedurer</a>.</p></div>') + '</div>';
@@ -1504,12 +1688,12 @@
     call('getCarInfo', carRef(car)).then(function (res) {
       info.loading = false;
       if (!carOpPending(car.key)) { info.equipment = res.info.equipment; info.defects = res.info.defects; info.notes = res.info.notes; info.notesBase = res.info.notes.updatedAt; }
-      if (onCarPage(car.key)) render();
+      if (showsCar(car.key)) render();
     }, function (err) {
       info.loading = false;
       if (err.code === 'AUTH') return;
       info.error = err.message;
-      if (onCarPage(car.key)) render();
+      if (showsCar(car.key)) render();
     });
     return info;
   }
@@ -1558,19 +1742,7 @@
       '<button class="secondary" type="submit">Tilføj udstyr</button></form></div>';
 
     var open = info.defects.filter(function (d) { return !d.fixed; }).length;
-    html += '<h3>Fejl og mangler' + (info.defects.length ? ' (' + open + ' åbne)' : '') + '</h3><div class="card info">';
-    html += info.defects.length
-      ? info.defects.map(function (d) {
-        return '<div class="info-row' + (d.fixed ? ' fixed' : '') + '"><label class="check-item"><input type="checkbox" data-df-fix="' + esc(d.id) + '" data-key="df-' + esc(d.id) + '"' + (d.fixed ? ' checked' : '') +
-          ' aria-label="Udbedret: ' + esc(d.text) + '"><span class="box">' + CHECK_SVG + '</span><span class="info-text">' + esc(d.text) + (d.photo ? ' <span class="pill">Billede</span>' : '') + '</span></label>' +
-          trashButton('df-del', d.id, d.text) + '</div>';
-      }).join('')
-      : '<p class="empty">Ingen fejl eller mangler skrevet på bilen.</p>';
-    var pic = S.dfPhoto && S.dfPhoto.key === car.key ? S.dfPhoto : null;
-    html += '<form class="info-add" id="dfForm" novalidate><input type="text" id="dfNew" data-key="dfNew" maxlength="300" autocomplete="off" enterkeyhint="done" placeholder="Beskriv fejlen eller manglen" aria-label="Ny fejl eller mangel">' +
-      '<label class="secondary photo-btn" id="dfPhotoBtn">' + (pic ? 'Billede valgt ✓' : 'Billede') + '<input type="file" id="dfPhoto" accept="image/*" aria-label="Tag eller vælg et billede til fejlen"></label>' +
-      '<button class="secondary" type="submit" id="dfAdd">Tilføj fejl</button>' +
-      '<p class="form-error" id="dfError" role="alert" hidden style="flex-basis:100%;margin:2px 0 0"></p></form></div>';
+    html += '<h3 id="defects">Fejl og mangler' + (info.defects.length ? ' (' + open + ' åbne)' : '') + '</h3><div class="card info">' + defectsWidget(car, info, false) + '</div>';
 
     html += '<h3>Noter</h3>';
     var conflict = S.noteConflicts[car.key];
@@ -1613,12 +1785,13 @@
     saveInfo(car, { equipment: [{ id: id, name: name }] });
     return true;
   }
-  function addDefect(car, text, photo) {
+  function addDefect(car, text, photo, extra) {
     var info = ensureCarInfo(car);
     var id = newItemId();
     var now = Date.now() + S.skew;
-    info.defects.push({ id: id, text: text, photo: photo || '', fixed: false, createdAt: now, updatedAt: now, by: S.state.user, deleted: false });
-    saveInfo(car, { defects: [{ id: id, text: text, photo: photo || '' }] });
+    extra = extra || {};
+    info.defects.push(Object.assign({ id: id, text: text, photo: photo || '', fixed: false, createdAt: now, updatedAt: now, by: S.state.user, deleted: false }, extra));
+    saveInfo(car, { defects: [Object.assign({ id: id, text: text, photo: photo || '' }, extra)] });
   }
 
   function saveNoteDraft() {
@@ -1754,12 +1927,12 @@
       if (carOpPending(car.key)) return;
       var before = infoSignature(info);
       info.equipment = res.info.equipment; info.defects = res.info.defects; info.notes = res.info.notes; info.notesBase = res.info.notes.updatedAt;
-      if (onCarPage(car.key) && before !== infoSignature(info)) render();
+      if (showsCar(car.key) && before !== infoSignature(info)) render();
     }, function () { /* stille: det, der står på skærmen, er stadig det seneste kendte */ });
   }
 
-  function removeInfoItem(kind, id) {
-    var car = currentCar();
+  function removeInfoItem(kind, id, fromEl) {
+    var car = fromEl ? carFromEl(fromEl) : currentCar();
     var info = car && S.info[car.key];
     if (!info) return;
     var list = kind === 'equipment' ? info.equipment : info.defects;
@@ -1776,12 +1949,27 @@
       var target = kind === 'equipment' ? cur.equipment : cur.defects;
       if (!target.some(function (x) { return x.id === id; })) target.splice(Math.min(index, target.length), 0, item);
       saveInfo(car, kind === 'equipment' ? { equipment: [{ id: id, restore: true }] } : { defects: [{ id: id, restore: true }] });
-      if (onCarPage(car.key)) render(true);
+      if (showsCar(car.key)) render(true);
     });
   }
 
+  /** Pris, hvem eller del bestilt på en mangel. patch: { price } | { who } | { part }. */
+  function setDefectExtra(el, id, patch) {
+    var car = carFromEl(el);
+    var info = car && S.info[car.key];
+    if (!info) return;
+    var d = info.defects.filter(function (x) { return x.id === id; })[0];
+    if (!d) return;
+    Object.keys(patch).forEach(function (k) {
+      if (patch[k] === null || patch[k] === '' || patch[k] === false) delete d[k]; else d[k] = patch[k];
+    });
+    d.updatedAt = Date.now() + S.skew;
+    saveInfo(car, { defects: [Object.assign({ id: id }, patch)] });
+    render(true);
+  }
+
   function toggleDefect(el) {
-    var car = currentCar();
+    var car = carFromEl(el);
     var info = car && S.info[car.key];
     if (!info) return;
     var id = el.getAttribute('data-df-fix');
@@ -1801,16 +1989,24 @@
   }
 
   function submitDefect() {
-    var car = currentCar();
+    var car = carFromEl($('dfForm'));
     if (!car || !carRef(car)) return;
     var input = $('dfNew');
     var text = input.value.replace(/\s+/g, ' ').trim();
     dfError('');
     if (!text) { dfError('Skriv, hvad fejlen eller manglen er.'); input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
     input.removeAttribute('aria-invalid');
+    var extra = {};
+    var priceEl = $('dfPrice'), whoEl = $('dfWho');
+    if (priceEl && priceEl.value.trim()) {
+      var price = parseNumberLoose(priceEl.value);
+      if (!isFinite(price) || price < 0) { dfError('Prisen skal være et tal i kr., fx 900.'); priceEl.setAttribute('aria-invalid', 'true'); priceEl.focus(); return; }
+      extra.price = Math.round(price * 100) / 100;
+    }
+    if (whoEl && whoEl.value) extra.who = whoEl.value;
     var pic = S.dfPhoto && S.dfPhoto.key === car.key ? S.dfPhoto.file : null;
     if (!pic) {
-      addDefect(car, text, '');
+      addDefect(car, text, '', extra);
       render(true);
       if ($('dfNew')) $('dfNew').focus();
       return;
@@ -1820,7 +2016,7 @@
     btn.textContent = 'Gemmer billede …';
     uploadFile(carRef(car), pic, newItemId()).then(function (res) {
       S.dfPhoto = null;
-      addDefect(car, text, res.path);
+      addDefect(car, text, res.path, extra);
       render(true);
       if ($('dfNew')) $('dfNew').focus();
     }, function (err) {
@@ -2047,6 +2243,8 @@
       return '<div class="loading"><span class="spinner"></span> Henter tjeklisten …</div>';
     }
     var open = run.status === STATUS.OPEN;
+    // Fremdriften regnes her, så bilens mangler (punkter af typen "Mangler på bilen") tæller med, når de er hentet.
+    if (open) run.progress = progressOf(run);
     var p = run.progress;
     var html = run.task
       ? '<a class="back" href="#/opgaver">' + ICONS.back + 'Opgaver</a>'
@@ -2187,7 +2385,7 @@
 
   function sectionHtml(run, section, open) {
     var skip = run.skipped[section.id];
-    var countDone = section.items.filter(function (it) { return isAnswered(it, run.answers[it.id]); }).length;
+    var countDone = section.items.filter(function (it) { return countsDone(it, run.answers[it.id]); }).length;
     var html = '<section class="card sec" id="sec-' + esc(section.id) + '" aria-labelledby="sech-' + esc(section.id) + '"><div class="sec-head"><h2 id="sech-' + esc(section.id) + '">' +
       esc(section.title) + (skip ? '' : '<span class="sec-count">' + countDone + '/' + section.items.length + '</span>') + '</h2>';
     if (section.optional && open) {
@@ -2209,7 +2407,7 @@
   function itemHtml(run, item, open) {
     var a = run.answers[item.id];
     var answered = isAnswered(item, a);
-    var opt = item.required ? '' : '<span class="opt-tag">valgfrit</span>';
+    var opt = item.required || item.type === 'defects' ? '' : '<span class="opt-tag">valgfrit</span>';
     var help = item.help ? '<span class="item-help">' + esc(item.help).replace(/\n/g, '<br>') + '</span>' : '';
     var key = 'item-' + item.id;
     var aid = 'it-' + esc(item.id);
@@ -2220,14 +2418,30 @@
         '<span><span class="item-text">' + esc(item.text) + opt + '</span>' + help + (answered ? whoLine(a) : '') + '</span></label>';
     }
 
-    var head = '<div class="item" id="' + aid + '"><span class="item-text" id="lbl-' + esc(item.id) + '">' + esc(item.text) + opt + '</span>' + help;
+    // Et afsnit, der er sprunget over, viser ikke sine punkter, så kun annullerede tjeklister skal sorteres fra her.
+    var flagged = isFlagged(item, a) && run.status !== STATUS.CANCELLED;
+    var head = '<div class="item' + (flagged ? ' flagged' : '') + '" id="' + aid + '"><span class="item-text" id="lbl-' + esc(item.id) + '">' + esc(item.text) + opt + '</span>' + help;
+    if (item.type === 'defects') return head + defectsItemHtml(run, item, open) + '</div>';
     if (!open) {
+      if (item.type === 'multi') {
+        return head + (answered ? multiReadonlyHtml(item, a.value) : '<div class="readonly-answer none">Ikke udfyldt</div>') + (answered ? whoLine(a) : '') + '</div>';
+      }
       var shown = answered ? (item.type === 'number' ? formatNumberDa(a.value) : String(a.value)) : '';
       return head + '<div class="readonly-answer' + (answered ? '' : ' none') + '">' + (answered ? esc(shown).replace(/\n/g, '<br>') : 'Ikke udfyldt') + '</div>' +
-        (answered ? whoLine(a) : '') + '</div>';
+        (answered ? whoLine(a) : '') + (flagged ? flagDoneHtml(run, item) : '') + '</div>';
     }
     var control = '';
-    if (item.type === 'yesno' || item.type === 'choice') {
+    if (item.type === 'multi') {
+      var marks = answered ? a.value : {};
+      control = '<div class="multi" role="group" aria-labelledby="lbl-' + esc(item.id) + '">' + item.options.map(function (o, i) {
+        var m = marks[o] || '';
+        var btn = function (mark, label) {
+          return '<button class="opt mk-' + mark + '" type="button" aria-pressed="' + (m === mark) + '" data-action="multi" data-item="' + esc(item.id) + '" data-opt="' + i + '" data-mark="' + mark + '" data-key="' + esc(key + '-' + i + mark) + '" aria-label="' + esc(o) + ': ' + label + '">' + (mark === 'ok' ? '✓ ' : '✗ ') + label + '</button>';
+        };
+        return '<div class="multi-row' + (m ? ' m-' + m : '') + '"><span class="multi-label">' + esc(o) + '</span><span class="multi-btns">' + btn('ok', 'Godkendt') + btn('mangler', 'Mangler') + '</span></div>';
+      }).join('') + '</div>' +
+        (runCar(run) && carRef(runCar(run)) ? '<p class="muted" style="font-size:12.5px;margin:6px 0 0">Mangler kommer på bilens liste over mangler.</p>' : '');
+    } else if (item.type === 'yesno' || item.type === 'choice') {
       var options = item.type === 'yesno' ? ['Ja', 'Nej'] : item.options;
       control = '<div class="opts" role="group" aria-labelledby="lbl-' + esc(item.id) + '">' + options.map(function (o, i) {
         var on = answered && a.value === o;
@@ -2239,12 +2453,163 @@
     } else {
       control = '<textarea data-item="' + esc(item.id) + '" data-key="' + esc(key) + '" aria-labelledby="lbl-' + esc(item.id) + '" maxlength="500" rows="2">' + esc(answered ? a.value : '') + '</textarea>';
     }
-    return head + '<div class="answer">' + control + '</div>' + (answered ? whoLine(a) : '') + '</div>';
+    return head + '<div class="answer">' + control + '</div>' + (answered ? whoLine(a) : '') + (flagged ? flagNoteHtml(run, item) : '') + '</div>';
+  }
+
+  function multiReadonlyHtml(item, value) {
+    return '<ul class="multi-ro">' + item.options.filter(function (o) { return value && value[o]; }).map(function (o) {
+      return '<li class="m-' + value[o] + '">' + (value[o] === 'ok' ? '✓ ' : '✗ ') + esc(o) + ' <span class="muted">· ' + (value[o] === 'ok' ? 'Godkendt' : 'Mangler') + '</span></li>';
+    }).join('') + '</ul>';
+  }
+
+  /** Et kryds i "Valg, flere svar". Mangler lægges på bilens liste over mangler (og fjernes igen, hvis krydset fjernes, og den ikke er udbedret). */
+  function setMulti(itemId, index, mark) {
+    var run = S.run;
+    if (!run || run.status !== STATUS.OPEN) return;
+    var item = null;
+    run.sections.forEach(function (s) { s.items.forEach(function (it) { if (it.id === itemId) item = it; }); });
+    if (!item || item.type !== 'multi' || !item.options[index]) return;
+    var o = item.options[index];
+    var cur = run.answers[itemId] && run.answers[itemId].value || {};
+    var next = Object.assign({}, cur);
+    var before = cur[o] || '';
+    if (next[o] === mark) delete next[o]; else next[o] = mark;
+    var after = next[o] || '';
+    setAnswer(itemId, Object.keys(next).length ? next : null);
+    var car = runCar(run);
+    if (car && carRef(car) && before !== after && (before === 'mangler' || after === 'mangler')) {
+      var info = ensureCarInfo(car);
+      var id = multiDefectId(run.id, itemId, index);
+      var text = (item.text + ': ' + o).slice(0, 300);
+      var existing = info.defects.filter(function (d) { return d.id === id; })[0];
+      var now = Date.now() + S.skew;
+      if (after === 'mangler') {
+        if (!existing) info.defects.push({ id: id, text: text, photo: '', fixed: false, createdAt: now, updatedAt: now, by: S.state.user, deleted: false });
+        // restore: en mangel, der er fjernet med et tidligere kryds, kommer tilbage (i stedet for at blive afvist som slettet).
+        saveInfo(car, { defects: [{ id: id, restore: true }, { id: id, text: text }] });
+      } else if (!existing || !existing.fixed) {
+        info.defects = info.defects.filter(function (d) { return d.id !== id; });
+        saveInfo(car, { defects: [{ id: id, deleted: true }] });
+      }
+    }
+    render(true);   // et tryk på en knap: tegn med det samme, også hvis markøren står i et tekstfelt
+  }
+
+  /** Punktet "Mangler på bilen": bilens liste (i gang) eller listen, som den stod ved afslutningen. */
+  function defectsItemHtml(run, item, open) {
+    var need = item.required ? '<p class="muted" style="font-size:13px;margin:4px 0 0">Alle mangler skal være udbedret, før tjeklisten kan afsluttes.</p>' : '';
+    if (!open) {
+      var a = run.answers[item.id];
+      var list = a && Array.isArray(a.value) ? a.value : null;
+      if (!list) return '<div class="readonly-answer none">Manglerne blev ikke gemt på tjeklisten (bilen havde ingen mappe).</div>';
+      if (!list.length) return '<div class="readonly-answer">Ingen mangler</div>' + whoLine(a);
+      var sum = defectSummary(list);
+      return '<ul class="df-ro">' + list.map(function (d) {
+        return '<li class="' + (d.fixed ? 'fixed' : '') + '">' + (d.fixed ? '✓ ' : '○ ') + esc(d.text) +
+          '<span class="muted">' + esc([typeof d.price === 'number' ? fmtKr(d.price) : '', WHO_LABELS[d.who] || '', d.part && !d.fixed ? 'del bestilt' : ''].filter(Boolean).map(function (x) { return ' · ' + x; }).join('')) + '</span></li>';
+      }).join('') + '</ul><p class="df-sum">' + sum.total + ' i alt · ' + (sum.total - sum.open) + ' udbedret' + (sum.price ? ' · ' + esc(fmtKr(sum.price)) : '') + '</p>' + whoLine(a);
+    }
+    if (!listsServer()) return '<p class="muted">' + NEEDS_NEW_SERVER + '.</p>';
+    var car = runCar(run);
+    if (!car) return need + '<p class="muted" style="margin:6px 0 0">' + (run.task ? 'Tilføj en bil til opgaven for at se og skrive bilens mangler.' : 'Bilen blev ikke fundet.') + '</p>';
+    if (!carRef(car)) return need + '<p class="muted" style="margin:6px 0 0">Bilen har ingen mappe på Google Drive endnu, så mangler kan ikke skrives her. Opret bilen i Bilarkivet eller med Ny bil.</p>';
+    var info = ensureCarInfo(car);
+    if (info.loading) return need + '<div class="loading" style="padding:10px 0"><span class="spinner"></span> Henter bilens mangler …</div>';
+    if (info.error) return need + '<div class="banner error" role="alert" style="margin:8px 0 0"><span>' + esc(info.error) + '</span><button class="secondary" type="button" data-action="info-retry" data-car="' + esc(car.key) + '">Prøv igen</button></div>';
+    return need + defectsWidget(car, info, true);
+  }
+
+  /**
+   * Bilens liste over mangler med pris, hvem og del bestilt, flueben for udbedret og en linje til en ny mangel.
+   * Bruges på bilens side og i tjeklisten (inChecklist: uden billede-knap, så formularen er kort).
+   */
+  function defectsWidget(car, info, inChecklist) {
+    var sum = defectSummary(info.defects);
+    var html = '<div class="df-widget" data-df-car="' + esc(car.key) + '">';
+    html += info.defects.length ? info.defects.map(function (d) {
+      var row = '<div class="info-row df-row' + (d.fixed ? ' fixed' : '') + '"><label class="check-item"><input type="checkbox" data-df-fix="' + esc(d.id) + '" data-key="df-' + esc(d.id) + '"' + (d.fixed ? ' checked' : '') +
+        ' aria-label="Udbedret: ' + esc(d.text) + '"><span class="box">' + CHECK_SVG + '</span><span class="info-text">' + esc(d.text) + (d.photo ? ' <span class="pill">Billede</span>' : '') + '</span></label>' +
+        trashButton('df-del', d.id, d.text) + '</div>';
+      if (!listsServer()) return row;
+      if (d.fixed) {
+        var done = [typeof d.price === 'number' ? fmtKr(d.price) : '', WHO_LABELS[d.who] || ''].filter(Boolean).join(' · ');
+        return row + (done ? '<div class="df-extra done">' + esc(done) + '</div>' : '');
+      }
+      return row + '<div class="df-extra">' +
+        '<input type="text" inputmode="decimal" class="df-price" data-df-price="' + esc(d.id) + '" data-key="dp-' + esc(d.id) + '" value="' + (typeof d.price === 'number' ? esc(formatNumberDa(d.price)) : '') + '" placeholder="Pris" aria-label="Pris i kr.: ' + esc(d.text) + '" autocomplete="off"><span class="df-kr">kr.</span>' +
+        '<select data-df-who="' + esc(d.id) + '" data-key="dw-' + esc(d.id) + '" aria-label="Hvem laver det: ' + esc(d.text) + '"><option value="">Hvem?</option>' +
+        Object.keys(WHO_LABELS).map(function (w) { return '<option value="' + w + '"' + (d.who === w ? ' selected' : '') + '>' + WHO_LABELS[w] + '</option>'; }).join('') + '</select>' +
+        '<button class="opt df-part" type="button" data-action="df-part" data-id="' + esc(d.id) + '" data-key="dpt-' + esc(d.id) + '" aria-pressed="' + (d.part === true) + '">' + (d.part ? '✓ Del bestilt' : 'Del bestilt') + '</button></div>';
+    }).join('') : '<p class="empty">Ingen fejl eller mangler skrevet på bilen.</p>';
+    if (sum.total) html += '<p class="df-sum">' + (sum.open ? '<b>' + sum.open + (sum.open === 1 ? ' mangel' : ' mangler') + '</b> tilbage' : '<b>Alt er udbedret</b>') + ' · ' + (sum.total - sum.open) + ' af ' + sum.total + ' udbedret' + (sum.price ? ' · I alt ' + esc(fmtKr(sum.price)) : '') + '</p>';
+    var pic = S.dfPhoto && S.dfPhoto.key === car.key ? S.dfPhoto : null;
+    html += '<form class="info-add df-add" id="dfForm" novalidate><input type="text" id="dfNew" data-key="dfNew" maxlength="300" autocomplete="off" enterkeyhint="done" placeholder="Fx Polering, ny tankklap" aria-label="Ny mangel">' +
+      (listsServer() ? '<input type="text" inputmode="decimal" id="dfPrice" data-key="dfPrice" class="df-price" placeholder="Pris" aria-label="Pris i kr. (valgfri)" autocomplete="off">' +
+        '<select id="dfWho" data-key="dfWho" aria-label="Hvem laver det (valgfrit)"><option value="">Hvem?</option><option value="selv">Selv</option><option value="værksted">Værksted</option></select>' : '') +
+      (inChecklist ? '' : '<label class="secondary photo-btn" id="dfPhotoBtn">' + (pic ? 'Billede valgt ✓' : 'Billede') + '<input type="file" id="dfPhoto" accept="image/*" aria-label="Tag eller vælg et billede til manglen"></label>') +
+      '<button class="secondary" type="submit" id="dfAdd">Tilføj</button>' +
+      '<p class="form-error" id="dfError" role="alert" hidden style="flex-basis:100%;margin:2px 0 0"></p></form>';
+    return html + '</div>';
+  }
+
+  /** Bilen, en knap eller et felt hører til: listen over mangler har bilens nøgle (også i en tjekliste), ellers bilens side. */
+  function carFromEl(el) {
+    var box = el && el.closest ? el.closest('[data-df-car]') : null;
+    return box ? findCar(box.getAttribute('data-df-car')) : currentCar();
+  }
+  /** Vises bilen lige nu: på bilens side, eller i en tjekliste på bilen. */
+  function showsCar(key) {
+    if (onCarPage(key)) return true;
+    return parseRoute().name === 'tjekliste' && !!S.run && hasCar(S.run.car) && keyOf(S.run) === key;
+  }
+
+  /** Mens tjeklisten er i gang: feltet til, hvad der mangler, under et ja/nej-punkt med "ikke klar". */
+  function flagNoteHtml(run, item) {
+    var note = run.flagNotes && run.flagNotes[item.id];
+    var fid = 'fn-' + esc(item.id);
+    return '<div class="flag-box"><span class="flag-tag">Bilen er ikke klar</span>' +
+      '<label class="label" for="' + fid + '">Hvad mangler?' + (item.required ? '' : ' <span style="font-weight:400">(valgfrit)</span>') + '</label>' +
+      '<textarea id="' + fid + '" data-flag-note="' + esc(item.id) + '" data-key="' + fid + '" maxlength="500" rows="2" placeholder="Fx bremser bag skal skiftes, ny forrude">' + esc(note ? note.text : '') + '</textarea>' +
+      (note ? '<span class="item-who">' + esc(personName(note.by)) + ' · ' + esc(fmtWhen(note.at)) + '</span>' : '') + '</div>';
+  }
+
+  /** På en gennemført tjekliste: det, der mangler, og "Udbedret" (eller hvornår det blev udbedret). */
+  function flagDoneHtml(run, item) {
+    var note = flagNoteText(run, item.id);
+    var res = run.resolved && run.resolved[item.id];
+    var canEdit = run.status === STATUS.DONE && flagsServer();
+    var html = '<div class="flag-box' + (res ? ' resolved' : '') + '">' +
+      '<span class="flag-tag">' + (res ? 'Udbedret' : 'Bilen er ikke klar') + '</span>' +
+      (note ? '<p class="flag-note">' + esc(note).replace(/\n/g, '<br>') + '</p>' : '<p class="flag-note muted">Der er ikke skrevet, hvad der mangler.</p>');
+    if (res) html += '<span class="item-who">Udbedret ' + esc(fmtWhen(res.at)) + ' af ' + esc(personName(res.by)) + '</span>';
+    if (canEdit) {
+      html += res
+        ? '<button class="link-btn no-print" type="button" data-action="flag-resolve" data-item="' + esc(item.id) + '" data-resolved="0" data-key="fr-' + esc(item.id) + '">Fortryd udbedret</button>'
+        : '<button class="secondary no-print" type="button" data-action="flag-resolve" data-item="' + esc(item.id) + '" data-resolved="1" data-key="fr-' + esc(item.id) + '">Markér som udbedret</button>';
+    }
+    return html + '</div>';
+  }
+
+  /** Markerer det, der manglede, som udbedret (eller fortryder) på den viste, gennemførte tjekliste. Vises med det samme og sendes i køen. */
+  function resolveFlag(itemId, resolved) {
+    var run = S.run;
+    if (!run || run.status !== STATUS.DONE) return;
+    var go2 = function () {
+      run.resolved = run.resolved || {};
+      if (resolved) run.resolved[itemId] = { at: Date.now() + S.skew, by: S.state.user }; else delete run.resolved[itemId];
+      updateSummary(run);
+      save('resolveChecklistFlag', { runId: run.id, itemId: itemId, resolved: resolved });
+      render(true);
+      toast(resolved ? (notReadyLines(run).length ? 'Markeret som udbedret.' : 'Markeret som udbedret. Bilen står ikke længere som ikke klar fra denne tjekliste.') : 'Udbedret er fortrudt.');
+    };
+    if (!resolved) { go2(); return; }
+    confirmBox('Er det udbedret?', 'Det bliver gemt med dato, tidspunkt og dit navn. Svarene på tjeklisten ændres ikke.', 'Udbedret', false).then(function (ok) { if (ok) go2(); });
   }
 
   /** Opdaterer fremdrift og afslut-knappen uden at tegne hele siden. */
   function refreshRunChrome() {
     if (!S.run) return;
+    if (S.run.status === STATUS.OPEN) S.run.progress = progressOf(S.run);
     var p = S.run.progress;
     var t = $('progressText'); if (t) t.innerHTML = progressLabel(p);
     var b = $('progressBar'); if (b) { b.style.width = pct(p) + '%'; b.parentNode.setAttribute('aria-valuenow', pct(p)); }
@@ -2341,7 +2706,8 @@
       updateSummary(res.run);
       if (res.skipped) {
         // Punktet er ændret senere (fx på en anden enhed): serveren beholdt den nyere ændring.
-        var what = op.name === 'saveChecklistNote' ? 'Noten' : op.name === 'skipChecklistSection' ? 'Afsnittet' : op.name === 'setChecklistCar' ? 'Bilen' : 'Punktet';
+        var what = op.name === 'saveChecklistNote' ? 'Noten' : op.name === 'skipChecklistSection' ? 'Afsnittet' : op.name === 'setChecklistCar' ? 'Bilen'
+          : op.name === 'saveChecklistFlagNote' ? 'Teksten om, hvad der mangler,' : op.name === 'resolveChecklistFlag' ? 'Udbedret' : 'Punktet';
         toast(what + ' blev ændret senere' + (res.by ? ' af ' + personName(res.by) : '') + ' – din ændring blev ikke gemt.', true);
         if (S.run && S.run.id === runId) {
           if (S.pending) mergeStale(op, res.run);   // andre ændringer venter: kun det sprungne ændres, resten står som det er
@@ -2393,7 +2759,7 @@
       toast('Ændringen blev ikke gemt: ' + err.message, true);
       if (isCar) {
         delete S.info[op.arg.carKey];     // hent det, der faktisk er gemt
-        if (onCarPage(op.arg.carKey)) render();
+        if (showsCar(op.arg.carKey)) render();
       } else if (!S.pending && S.run && S.run.id === runId) {
         S.run = null;           // hent det, der faktisk er gemt
         refreshRun(runId);
@@ -2432,7 +2798,7 @@
       }
       var plateReg = op.arg.carReg || (S.state && findCar(key) ? findCar(key).reg : '');
       toast('Noten til ' + (plateReg ? plateText(plateReg) : 'bilen') + ' blev ændret af ' + conflictBy(res.info.notes.by) + ', mens du skrev. Din tekst blev ikke gemt. Åbn bilen for at se den.', true);
-      if (onCarPage(key)) render();
+      if (showsCar(key)) render();
       return;
     }
     if (res.skipped && res.skipped.some(function (id) { return id !== 'notes'; })) toast('Noget er ændret i Bilarkivet, mens du arbejdede. Din ændring blev ikke gemt.', true);
@@ -2443,9 +2809,9 @@
     info.equipment = res.info.equipment;
     info.defects = res.info.defects;
     info.notes = res.info.notes; info.notesBase = res.info.notes.updatedAt;
-    if (onCarPage(key) && before !== infoSignature(info)) render();
+    if (showsCar(key) && before !== infoSignature(info)) render();
   }
-  function infoSignature(info) { return JSON.stringify([info.equipment.map(function (e) { return [e.id, e.name]; }), info.defects.map(function (d) { return [d.id, d.text, d.fixed, d.photo]; }), info.notes.text]); }
+  function infoSignature(info) { return JSON.stringify([info.equipment.map(function (e) { return [e.id, e.name]; }), info.defects.map(function (d) { return [d.id, d.text, d.fixed, d.photo, d.price, d.who, d.part]; }), info.notes.text]); }
 
   /** Henter kun det, serveren beholdt for den sprungne ændring, ind i den viste tjekliste. Ventende ændringer forsvinder ikke fra skærmen. */
 
@@ -2453,6 +2819,15 @@
     var a = op.arg, key;
     if (op.name === 'saveChecklistNote') { key = 'note'; S.run.note = serverRun.note; }
     else if (op.name === 'setChecklistCar') { key = 'car'; S.run.car = serverRun.car; S.run.key = serverRun.key; }
+    else if (op.name === 'saveChecklistFlagNote') {
+      key = 'fn:' + a.itemId;
+      S.run.flagNotes = S.run.flagNotes || {};
+      if (serverRun.flagNotes && serverRun.flagNotes[a.itemId]) S.run.flagNotes[a.itemId] = serverRun.flagNotes[a.itemId]; else delete S.run.flagNotes[a.itemId];
+    } else if (op.name === 'resolveChecklistFlag') {
+      key = 'res:' + a.itemId;
+      S.run.resolved = S.run.resolved || {};
+      if (serverRun.resolved && serverRun.resolved[a.itemId]) S.run.resolved[a.itemId] = serverRun.resolved[a.itemId]; else delete S.run.resolved[a.itemId];
+    }
     else if (op.name === 'skipChecklistSection') {
       key = 'sec:' + a.sectionId;
       if (serverRun.skipped[a.sectionId]) S.run.skipped[a.sectionId] = serverRun.skipped[a.sectionId]; else delete S.run.skipped[a.sectionId];
@@ -2507,7 +2882,9 @@
   function runSignature(run) {
     var values = {};
     Object.keys(run.answers).sort().forEach(function (k) { values[k] = run.answers[k].value; });
-    return JSON.stringify([values, Object.keys(run.skipped).sort(), run.status, run.note, run.car]);
+    var notes = {};
+    Object.keys(run.flagNotes || {}).sort().forEach(function (k) { notes[k] = run.flagNotes[k].text; });
+    return JSON.stringify([values, Object.keys(run.skipped).sort(), run.status, run.note, run.car, notes, Object.keys(run.resolved || {}).sort()]);
   }
 
   function localAnswer(itemId, value) {
@@ -2522,6 +2899,7 @@
   function setAnswer(itemId, value) {
     if (!S.run || S.run.status !== STATUS.OPEN) return;
     localAnswer(itemId, value);
+    updateSummary(S.run);   // fx "Ikke klar" på listen over biler følger svaret med det samme
     save('answerChecklistItem', { runId: S.run.id, itemId: itemId, value: value });
   }
 
@@ -2548,7 +2926,7 @@
         S.finishing = false;
         setState(res.state);
         S.run = res.run;
-        render();
+        render(true);   // tjeklisten er låst nu: tegn med det samme, også hvis markøren stod i et felt (fx en ny mangel)
         window.scrollTo(0, 0);
         toast('Tjeklisten er gennemført og gemt.');
         if (offersCar(res.run)) {
@@ -2697,7 +3075,7 @@
   // ---------- Redigering ----------
 
   function newKey() { S.keySeq++; return 'k' + S.keySeq; }
-  function blankItem() { return { key: newKey(), id: '', text: '', help: '', type: 'check', required: true, optionsText: '', showHelp: false }; }
+  function blankItem() { return { key: newKey(), id: '', text: '', help: '', type: 'check', required: true, optionsText: '', showHelp: false, flag: '' }; }
   function blankSection() { return { key: newKey(), id: '', title: '', optional: false, skipLabel: 'Ikke relevant', items: [blankItem()] }; }
 
   function editorFromProcedure(p) {
@@ -2708,7 +3086,7 @@
         return {
           key: newKey(), id: s.id, title: s.title, optional: s.optional, skipLabel: s.skipLabel || 'Ikke relevant',
           items: s.items.map(function (it) {
-            return { key: newKey(), id: it.id, text: it.text, help: it.help, type: it.type, required: it.required, optionsText: (it.options || []).join('\n'), showHelp: !!it.help };
+            return { key: newKey(), id: it.id, text: it.text, help: it.help, type: it.type, required: it.required, optionsText: (it.options || []).join('\n'), showHelp: !!it.help, flag: it.flag || '' };
           })
         };
       })
@@ -2791,11 +3169,27 @@
       '<button class="icon-btn danger" type="button" data-action="item-del" data-s="' + si + '" data-i="' + ii + '" data-key="ix-' + it.key + '" aria-label="Slet punkt">' + ICONS.trash + '</button>' +
       '</div></div>';
     html += '<div class="ed-item-opts"><select data-bind="' + ip + '.type" data-field="' + ip + '.type" data-key="ty-' + it.key + '" aria-label="Type">' +
-      ['check', 'yesno', 'choice', 'number', 'text'].map(function (t) { return '<option value="' + t + '"' + (it.type === t ? ' selected' : '') + '>' + TYPE_LABELS[t] + '</option>'; }).join('') + '</select>' +
-      '<label class="tick"><input type="checkbox" data-bind="' + ip + '.required" data-key="rq-' + it.key + '"' + (it.required ? ' checked' : '') + '> Skal udfyldes</label></div>';
+      // De nye typer vises kun, når serveren kan dem (ellers kan proceduren ikke gemmes).
+      ['check', 'yesno', 'choice', 'multi', 'number', 'text', 'defects'].filter(function (t) { return listsServer() || (t !== 'multi' && t !== 'defects') || it.type === t; })
+        .map(function (t) { return '<option value="' + t + '"' + (it.type === t ? ' selected' : '') + '>' + TYPE_LABELS[t] + '</option>'; }).join('') + '</select>' +
+      '<label class="tick"><input type="checkbox" data-bind="' + ip + '.required" data-key="rq-' + it.key + '"' + (it.required ? ' checked' : '') + '> ' +
+      (it.type === 'defects' ? 'Alle skal være udbedret, før tjeklisten kan afsluttes' : it.type === 'multi' ? 'Mindst ét kryds' : 'Skal udfyldes') + '</label></div>';
     html += '<div class="ed-item-extra">';
-    if (it.type === 'choice') {
-      html += '<div class="field" style="margin:0"><label for="op-' + it.key + '">Valgmuligheder, én pr. linje</label><textarea id="op-' + it.key + '" data-bind="' + ip + '.optionsText" data-field="' + ip + '.options" data-key="op-' + it.key + '"' + inv(ip + '.options') + ' rows="3">' + esc(it.optionsText) + '</textarea></div>';
+    if (it.type === 'yesno' && flagsServer()) {
+      html += '<div class="field ed-flag" style="margin:0"><label for="fl-' + it.key + '">Bilen er ikke klar, når svaret er</label>' +
+        '<select id="fl-' + it.key + '" data-bind="' + ip + '.flag" data-field="' + ip + '.flag" data-key="fl-' + it.key + '">' +
+        [['', 'Ingen markering'], ['Ja', 'Ja'], ['Nej', 'Nej']].map(function (o) { return '<option value="' + o[0] + '"' + ((it.flag || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+        '</select>' +
+        (it.flag ? '<p class="muted" style="font-size:13px;margin:6px 0 0">Ved svaret ' + esc(it.flag) + ' skrives, hvad der mangler, og bilen står som <b>Ikke klar</b> på listen over biler, til svaret ændres, eller det er markeret som udbedret.</p>' : '') +
+        '</div>';
+    }
+    if (it.type === 'choice' || it.type === 'multi') {
+      html += '<div class="field" style="margin:0"><label for="op-' + it.key + '">Valgmuligheder, én pr. linje</label><textarea id="op-' + it.key + '" data-bind="' + ip + '.optionsText" data-field="' + ip + '.options" data-key="op-' + it.key + '"' + inv(ip + '.options') + ' rows="' + (it.type === 'multi' ? 6 : 3) + '"' +
+        (it.type === 'multi' ? ' placeholder="Fx&#10;Lys foran&#10;Lys bag&#10;Viskerblade"' : '') + '>' + esc(it.optionsText) + '</textarea>' +
+        (it.type === 'multi' ? '<p class="muted" style="font-size:13px;margin:6px 0 0">Hver mulighed krydses af som <b>Godkendt</b> eller <b>Mangler</b>. Intet kryds betyder, at det er ligegyldigt. Et kryds i Mangler kommer på bilens liste over mangler.</p>' : '') + '</div>';
+    }
+    if (it.type === 'defects') {
+      html += '<p class="muted" style="font-size:13px;margin:0">Viser bilens liste over mangler (Fejl og mangler) med pris, selv/værksted og del bestilt. Brug den fx under modtagelsen til at skrive, hvad der skal udbedres, og i klargøringen med "Alle skal være udbedret" slået til.</p>';
     }
     if (it.showHelp) {
       html += '<div class="field" style="margin:0"><label for="hp-' + it.key + '">Hjælpetekst</label><textarea id="hp-' + it.key + '" data-bind="' + ip + '.help" data-field="' + ip + '.help" data-key="hp-' + it.key + '"' + inv(ip + '.help') + ' maxlength="400" rows="2">' + esc(it.help) + '</textarea></div>';
@@ -2822,7 +3216,9 @@
         return {
           id: s.id, title: s.title, optional: s.optional, skipLabel: s.skipLabel,
           items: s.items.map(function (it) {
-            return { id: it.id, text: it.text, help: it.showHelp ? it.help : '', type: it.type, required: it.required, options: it.type === 'choice' ? it.optionsText.split('\n') : [] };
+            var item = { id: it.id, text: it.text, help: it.showHelp ? it.help : '', type: it.type, required: it.required, options: it.type === 'choice' || it.type === 'multi' ? it.optionsText.split('\n') : [] };
+            if (it.type === 'yesno' && (it.flag === 'Ja' || it.flag === 'Nej')) item.flag = it.flag;
+            return item;
           })
         };
       })
@@ -3205,7 +3601,7 @@
         return;
       case 'create-car': createCarNow(); return;
       case 'info-retry':
-        var shownCar = currentCar();
+        var shownCar = el.getAttribute('data-car') ? findCar(el.getAttribute('data-car')) : currentCar();
         if (shownCar) { delete S.info[shownCar.key]; render(); }
         return;
       case 'note-mine':
@@ -3225,7 +3621,11 @@
         return;
       case 'eq-del': removeInfoItem('equipment', el.getAttribute('data-id')); return;
 
-      case 'df-del': removeInfoItem('defects', el.getAttribute('data-id')); return;
+      case 'df-del': removeInfoItem('defects', el.getAttribute('data-id'), el); return;
+      case 'df-part': setDefectExtra(el, el.getAttribute('data-id'), { part: el.getAttribute('aria-pressed') !== 'true' }); return;
+      case 'multi': setMulti(el.getAttribute('data-item'), +el.getAttribute('data-opt'), el.getAttribute('data-mark')); return;
+      case 'car-filter': S.carFilter = el.getAttribute('data-value'); render(true); return;
+      case 'goto-defects': var dh = $('defects'); if (dh) dh.scrollIntoView({ block: 'start', behavior: 'smooth' }); return;
       case 'photo-retry':
         var photoCar = currentCar();
         if (photoCar) retryPhotos(photoCar.key);
@@ -3256,11 +3656,13 @@
       case 'task-start': startTask(); return;
       case 'run-car': changeRunCar(); return;
       case 'offer-car': if (S.run) openNewCarForRun(S.run); return;
+      case 'flag-resolve': resolveFlag(el.getAttribute('data-item'), el.getAttribute('data-resolved') === '1'); return;
       case 'goto-item':
         var target = $('it-' + el.getAttribute('data-item'));
         if (target) {
           target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          var input = target.querySelector('input, button, textarea');
+          var flagInput = target.querySelector('[data-flag-note]');
+          var input = flagInput && !flagInput.value.trim() ? flagInput : target.querySelector('input, button, textarea');
           if (input) input.focus({ preventScroll: true });
         }
         return;
@@ -3288,6 +3690,15 @@
   document.addEventListener('change', function (ev) {
     var el = ev.target;
     if (el.hasAttribute('data-df-fix')) { toggleDefect(el); return; }
+    if (el.hasAttribute('data-df-price')) {
+      var raw = el.value.trim();
+      var price = raw ? parseNumberLoose(raw) : null;
+      if (raw && (!isFinite(price) || price < 0)) { el.setAttribute('aria-invalid', 'true'); toast('Skriv prisen som et tal i kr., fx 900.', true); return; }
+      el.removeAttribute('aria-invalid');
+      setDefectExtra(el, el.getAttribute('data-df-price'), { price: price === null ? null : Math.round(price * 100) / 100 });
+      return;
+    }
+    if (el.hasAttribute('data-df-who')) { setDefectExtra(el, el.getAttribute('data-df-who'), { who: el.value }); return; }
     if (el.id === 'carNote') {
       var noteCar = currentCar();
       if (noteCar) { S.noteDraft = { key: noteCar.key, text: el.value }; saveNoteDraft(); }
@@ -3324,12 +3735,25 @@
       } else if (el.tagName === 'SELECT') {
         b.obj[b.prop] = el.value;
         if (el.value === 'choice' && !b.obj.optionsText) b.obj.optionsText = '';
+        // En liste over mangler i fx modtagelsen skal ikke være udbedret: "Alle skal være udbedret" slås til med vilje (fx i klargøringen).
+        if (b.prop === 'type' && el.value === 'defects') b.obj.required = false;
         S.dirty = true;
         render();
       }
       return;
     }
     if (!S.run || S.run.status !== STATUS.OPEN || !view.contains(el)) return;
+    if (el.hasAttribute('data-flag-note')) {
+      var flagItem = el.getAttribute('data-flag-note');
+      var text = el.value.trim();
+      S.run.flagNotes = S.run.flagNotes || {};
+      if (text) S.run.flagNotes[flagItem] = { text: text, at: Date.now() + S.skew, by: S.state.user }; else delete S.run.flagNotes[flagItem];
+      S.run.progress = progressOf(S.run);
+      updateSummary(S.run);
+      save('saveChecklistFlagNote', { runId: S.run.id, itemId: flagItem, text: el.value });
+      refreshRunChrome();
+      return;
+    }
     var itemId = el.getAttribute('data-item');
     if (itemId && el.type === 'checkbox') {
       setAnswer(itemId, el.checked);
@@ -3377,7 +3801,7 @@
     S.run.sections.forEach(function (section) {
       var h = $('sech-' + section.id);
       var c = h && h.querySelector('.sec-count');
-      if (c) c.textContent = section.items.filter(function (it) { return isAnswered(it, S.run.answers[it.id]); }).length + '/' + section.items.length;
+      if (c) c.textContent = section.items.filter(function (it) { return countsDone(it, S.run.answers[it.id]); }).length + '/' + section.items.length;
     });
   }
 
@@ -3419,7 +3843,7 @@
   // Enter i et tal-felt gemmer med det samme.
   document.addEventListener('keydown', function (ev) {
     var el = ev.target;
-    if (ev.key === 'Enter' && el.classList && el.classList.contains('num-input')) { ev.preventDefault(); el.blur(); }
+    if (ev.key === 'Enter' && el.classList && (el.classList.contains('num-input') || el.hasAttribute('data-df-price'))) { ev.preventDefault(); el.blur(); }
   });
 
   document.addEventListener('focusout', function () {
