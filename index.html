@@ -2104,6 +2104,7 @@
       '<div class="car-head">' + plate(n.reg, true) + '<h1>Ny bil</h1></div>' +
       '<p class="muted" style="margin:6px 0 16px">' + (n.lookedUp ? 'Oplysningerne er hentet fra registret. Ret dem, hvis noget er forkert.' : 'Der er ikke slået noget op. Udfyld oplysningerne selv.') + '</p>';
     if (n.error) html += '<div class="banner error" role="alert" id="ncError"><span>' + esc(n.error) + '</span></div>';
+    if (n.statusNote) html += '<div class="banner warn" role="status"><span>' + esc(n.statusNote) + '</span></div>';
     if (n.equipmentError) html += '<div class="banner warn" role="status"><span>' + esc(n.equipmentError) + '</span></div>';
     html += '<section class="card" aria-label="Oplysninger"><div class="form-grid">' +
       ncField(n, 'model', 'Mærke og model', { wide: true, max: 120, ph: 'fx VW Golf 1.5 TSI Style' }) +
@@ -2158,6 +2159,7 @@
       n.motDate = c.motDate || '';
       n.equip = res.equipment.map(function (e) { return { name: e.label || e.name, source: 'dmr', checked: true }; });
       n.equipmentError = res.equipmentError || '';
+      n.statusNote = res.statusNote || '';
       n.lookedUp = true;
       n.step = 'form';
       render(true);
@@ -2181,7 +2183,7 @@
       if ($('newReg')) $('newReg').focus();
       return;
     }
-    n.lookedUp = false; n.equip = []; n.equipmentError = ''; n.step = 'form';
+    n.lookedUp = false; n.equip = []; n.equipmentError = ''; n.statusNote = ''; n.step = 'form';
     if (!n.f.model && n.runModel) n.f.model = n.runModel;   // modellen og km-standen fra opgaven
     if (!n.f.km && n.runKm) n.f.km = n.runKm;
     render(true);
